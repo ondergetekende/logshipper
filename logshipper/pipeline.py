@@ -126,20 +126,20 @@ class Pipeline():
         import pika
         import json
 
-        parameters = pika.connection.ConnectionParameters(
+        conn_parameters = pika.connection.ConnectionParameters(
             credentials=pika.PlainCredentials(
                 parameters.get('username', 'guest'),
                 parameters.get('password', 'guest')),
             host=parameters.get('host', '127.0.0.1'),
-            port=parameters.get('port', 5672)
+            port=int(parameters.get('port', 5672))
         )
 
-        connection = pika.adapters.BlockingConnection(parameters)
+        connection = pika.adapters.BlockingConnection(conn_parameters)
         channel = connection.channel()
 
-        exchange = parameters.get('exchange', "logstash")
-        queue = parameters.get('queue', "logstash")
-        key = parameters.get('key', "logstash")
+        exchange = parameters.get('exchange', "logshipper")
+        queue = parameters.get('queue', "logshipper")
+        key = parameters.get('key', "logshipper")
 
         channel.queue_declare(queue=queue, durable=False,
                               arguments={'x-ha-policy': 'all'})
@@ -161,14 +161,14 @@ class Pipeline():
 
         statsd_connection = statsd.Connection(
             host=parameters.get('host', '127.0.0.1'),
-            port=int(parameters.get('port', 1825)),
+            port=int(parameters.get('port', 8125)),
             sample_rate=float(parameters.get('sample_rate', 1.0)),
         )
 
         type = parameters.get('type', 'counter')
         name_template = parameters['name']
         name_is_template = '{' in name_template
-        multiplier = float(parameters.get('type', 1.0))
+        multiplier = float(parameters.get('multiplier', 1.0))
         val_template = parameters.get('value', "1")
         if isinstance(val_template, basestring) and '{' in val_template:
             val_is_template = True
@@ -177,15 +177,15 @@ class Pipeline():
             val_template = float(val_template)
 
         if type == 'counter':
-            statsd_client = statsd.Counter(parameters.get('prefix', 1.0),
+            statsd_client = statsd.Counter(parameters.get('prefix'),
                                            statsd_connection)
             delta = True
         elif type == 'gauge':
-            statsd_client = statsd.Gauge(parameters.get('prefix', 1.0),
+            statsd_client = statsd.Gauge(parameters.get('prefix'),
                                          statsd_connection)
             delta = str(parameters.get("delta", False)).lower() in TRUTH_VALUES
         elif type == 'timer':
-            statsd_client = statsd.Timer(parameters.get('prefix', 1.0),
+            statsd_client = statsd.Timer(parameters.get('prefix'),
                                          statsd_connection)
             delta = False
         else:

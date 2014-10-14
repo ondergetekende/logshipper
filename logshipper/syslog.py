@@ -31,11 +31,12 @@ def parse_syslog(message):
         }
 
 
-class SyslogServer(StreamServer):
+class Syslog(StreamServer):
+    def __init__(self, bind="127.0.0.1", port=514):
+        StreamServer.__init__(self, (bind, port))
 
-    def __init__(self, listener, on_message, **kwargs):
-        StreamServer.__init__(self, listener, **kwargs)
-        self.on_message = on_message
+    def set_handler(self, handler):
+        self.on_message = handler
 
     def handle(self, socket, address):
         fileobj = socket.makefile('r', 4096)

@@ -1,15 +1,13 @@
 import logging
-import re
+import os
+import pkg_resources
 import time
 import yaml
 import yaml.constructor
-import os
 
-TRUTH_VALUES = set(['1', 'true', 'yes', 'on'])
-SKIP_STEP = 1
-DROP_MESSAGE = 2
+from logshipper import filters
+
 LOG = logging.getLogger(__name__)
-
 
 try:
     # included in standard lib from Python 2.7
@@ -18,11 +16,6 @@ except ImportError:
     # try importing the backported drop-in replacement
     # it's available on PyPI
     from ordereddict import OrderedDict
-
-
-def interpolate_template(template, context):
-    return template.format(*context.get('pargs', []),
-                           **context.get('variables', {}))
 
 
 class OrderedDictYAMLLoader(yaml.Loader):
@@ -70,160 +63,42 @@ class OrderedDictYAMLLoader(yaml.Loader):
 
 class Pipeline():
     def __init__(self, pipeline_yaml):
-        pipeline = yaml.load()
+        pipeline = yaml.load(pipeline_yaml)
+        self.filter_factories = dict(
+            (entrypoint.name, entrypoint) for entrypoint in
+            pkg_resources.iter_entry_points("logshipper.filters")
+        )
 
         self.steps = [self.prepare_step(step) for step in pipeline]
 
     def prepare_step(self, step_config):
         sequence = []
         for stepname in ['match']:
-            parameters = step_config.pop(stepname, None)
-            prepare_func = getattr(self, 'prepare_' + stepname)
-            sequence.add(prepare_func(parameters))
+            if stepname in step_config:
+                parameters = step_config.pop(stepname, None)
+                sequence.append(self.prepare_action(stepname, parameters))
 
-        for stepname, parameters in step_config.items():
-            prepare_func = getattr(self, 'prepare_' + stepname)
-            sequence.add(prepare_func(parameters))
+        sequence.extend(
+            self.prepare_action(stepname, parameters)
+            for (stepname, parameters) in step_config.items())
 
         return sequence
 
-    def prepare_match(self, parameters):
-        if isinstance(parameters, basestring):
-            parameters = {"msg": parameters}
-
-        regexes = [(a, re.compile(b)) for (a, b) in parameters.items()]
-
-        def handle_match(message, context):
-            matches = []
-            for field_name, regex in regexes:
-                field_data = message.get(field_name)
-                m = regex.search(field_data)
-                if not m:
-                    return SKIP_STEP
-                matches.append()
-
-            for m in matches:
-                context['variables'].update(m.groupdict())
-
-            if len(matches) == 1:
-                context['pargs'] = matches[0].groups()
-                context['match_field'] = regexes[0][0]
-
-        return handle_match
-
-    def prepare_set(self, parameters):
-        assert isinstance(parameters, dict)
-
-        parameters = parameters.items()
-
-        def handle_set(message, context):
-            for fieldname, template in parameters:
-                message[fieldname] = interpolate_template(template, context)
-
-        return handle_set
-
-    def prepare_rabbitmq(self, parameters):
-        import pika
-        import json
-
-        conn_parameters = pika.connection.ConnectionParameters(
-            credentials=pika.PlainCredentials(
-                parameters.get('username', 'guest'),
-                parameters.get('password', 'guest')),
-            host=parameters.get('host', '127.0.0.1'),
-            port=int(parameters.get('port', 5672))
-        )
-
-        connection = pika.adapters.BlockingConnection(conn_parameters)
-        channel = connection.channel()
-
-        exchange = parameters.get('exchange', "logshipper")
-        queue = parameters.get('queue', "logshipper")
-        key = parameters.get('key', "logshipper")
-
-        channel.queue_declare(queue=queue, durable=False,
-                              arguments={'x-ha-policy': 'all'})
-
-        channel.exchange_declare(exchange=exchange, durable=False)
-        channel.queue_bind(exchange=exchange, queue=queue, routing_key=key)
-
-        def handle_rabbitmq(message, context):
-            channel.basic_publish(exchange=exchange, routing_key=key,
-                                  body=json.dumps(message),
-                                  properties=pika.BasicProperties(
-                                      content_type='text/json',
-                                      delivery_mode=1
-                                  ))
-        return handle_rabbitmq
-
-    def prepare_statsd(self, parameters):
-        import statsd
-
-        statsd_connection = statsd.Connection(
-            host=parameters.get('host', '127.0.0.1'),
-            port=int(parameters.get('port', 8125)),
-            sample_rate=float(parameters.get('sample_rate', 1.0)),
-        )
-
-        type = parameters.get('type', 'counter')
-        name_template = parameters['name']
-        name_is_template = '{' in name_template
-        multiplier = float(parameters.get('multiplier', 1.0))
-        val_template = parameters.get('value', "1")
-        if isinstance(val_template, basestring) and '{' in val_template:
-            val_is_template = True
-        else:
-            val_is_template = False
-            val_template = float(val_template)
-
-        if type == 'counter':
-            statsd_client = statsd.Counter(parameters.get('prefix'),
-                                           statsd_connection)
-            delta = True
-        elif type == 'gauge':
-            statsd_client = statsd.Gauge(parameters.get('prefix'),
-                                         statsd_connection)
-            delta = str(parameters.get("delta", False)).lower() in TRUTH_VALUES
-        elif type == 'timer':
-            statsd_client = statsd.Timer(parameters.get('prefix'),
-                                         statsd_connection)
-            delta = False
-        else:
-            raise Exception()
-
-        def handle_statsd(message, context):
-            if name_is_template:
-                name = interpolate_template(name_template, context)
-            else:
-                name = name_template
-
-            if val_is_template:
-                value = float(interpolate_template(val_template, context))
-            else:
-                value = val_template
-
-            if delta:
-                statsd_client.increment(name, float(value) * multiplier)
-            else:
-                statsd_client.send(name, float(value) * multiplier)
-
-        return statsd
-
-    def prepare_drop(self, parameters):
-        if str(parameters).lower() in TRUTH_VALUES:
-            return lambda message, parameters: DROP_MESSAGE
+    def prepare_action(self, name, parameters):
+        endpoint = self.filter_factories[name]
+        filter_factory = endpoint.load()
+        return filter_factory(parameters)
 
     def process(self, message):
         variables = {}
         for step in self.steps:
             context = {'variables': variables}
             for substep in step:
-                if substep:
-                    result = substep(message, context)
-                    if result == DROP_MESSAGE:
-                        return None
-                    elif result == SKIP_STEP:
-                        break
+                result = substep(message, context)
+                if result == filters.DROP_MESSAGE:
+                    return None
+                elif result == filters.SKIP_STEP:
+                    break
 
         return message
 
@@ -237,7 +112,7 @@ class PipelineManager():
     def get(self, name="default"):
         try:
             pipeline = self.pipelines[name]
-        except IndexError:
+        except KeyError:
             pipeline = self.pipelines[name] = {
                 "path": os.path.join(self.path, name + ".yml"),
                 "reload_time": 0,

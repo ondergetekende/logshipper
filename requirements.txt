@@ -1,0 +1,4 @@
+gevent
+pyyaml
+pika
+python-statsd

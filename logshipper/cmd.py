@@ -1,10 +1,14 @@
-import gevent
-import gevent.wsgi
-import logging
+import gevent.monkey
+gevent.monkey.patch_all()
+
 import argparse
+import gevent
+import logging
+import pkg_resources
+import yaml
+
 
 from logshipper.pipeline import PipelineManager
-import logshipper.syslog
 
 ARGS = None
 LOG = None
@@ -20,13 +24,9 @@ def main():
                         help='Where to find pipelines (*.yml files)')
     parser.add_argument('--pipeline-reload', type=float, default=60,
                         help='Number of seconds between two pipeline reloads')
-    parser.add_argument('--syslog-port', type=int, default=None,
-                        help='The port number to listen to for syslog (TCP)')
-    parser.add_argument('--syslog-bind', default='127.0.0.1',
-                        help='The IP to bind for syslog (TCP)')
 
-    parser.add_argument('--syslog-pipeline', default='default',
-                        help='Name of the pipeline to use for syslog')
+    parser.add_argument('--input-config', nargs='+', default=[],
+                        type=argparse.FileType('r'))
 
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--debug', action='store_true')
@@ -43,24 +43,42 @@ def main():
     logging.basicConfig(level=log_level)
     LOG = logging.getLogger()
 
-    pipeline_manager = PipelineManager(ARGS.pipeline_path)
+    pipeline_manager = PipelineManager(ARGS.pipeline_path,
+                                       reload_interval=ARGS.pipeline_reload)
 
-    services = []
+    input_factories = dict(
+        (entrypoint.name, entrypoint) for entrypoint in
+        pkg_resources.iter_entry_points("logshipper.inputs")
+    )
 
-    if ARGS.syslog_port:
-        syslog = logshipper.syslog.SyslogServer(
-            ('127.0.0.1', 3514),  # TODO: configurize this
-            lambda m: pipeline_manager.process_message(m, ARGS.syslog_pipeline)
-        )
-        syslog.start()
-        services.append(syslog)
+    input_handlers = []
+
+    for input_config in ARGS.input_config:
+        for input_spec in yaml.load(input_config.read()):
+            pipeline_name = input_spec.pop("pipeline", "default")
+            if len(input_spec) != 1:
+                raise Exception("Need exactly one handler")
+
+            handler_name, args = input_spec.items()[0]
+            endpoint = input_factories[handler_name]
+            input_handler = endpoint.load()(**args)
+            input_handler.set_handler(
+                lambda m: pipeline_manager.process_message(m, pipeline_name))
+
+            input_handlers.append(input_handler)
+
+    if not input_handlers:
+        raise Exception("No inputs. Nothing to do")
 
     stop_event = gevent.event.Event()
+
+    for input_handler in input_handlers:
+        input_handler.start()
 
     try:
         stop_event.wait()
     finally:
         # The wait failed, usually indicating an interruption, e.g. ctrl-c
         stop_event.set()
-        for service in services:
-            service.stop()
+        for input_handler in input_handlers:
+            input_handler.stop()

@@ -31,7 +31,8 @@ def prepare_match(parameters):
             context.variables.update(m.groupdict())
 
         if len(matches) == 1:
-            context.backreferences = matches[0].groups()
+            context.backreferences = [matches[0].group(0)]
+            context.backreferences.extend(matches[0].groups())
             context.match_field = regexes[0][0]
 
     handle_match.phase = PHASE_MATCH

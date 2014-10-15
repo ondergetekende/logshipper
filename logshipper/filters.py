@@ -4,6 +4,10 @@ SKIP_STEP = 1
 DROP_MESSAGE = 2
 TRUTH_VALUES = set(['1', 'true', 'yes', 'on'])
 
+PHASE_MATCH = 10
+PHASE_DROP = 20
+PHASE_MANIPULATE = 30
+PHASE_FORWARD = 40
 
 def prepare_match(parameters):
     if isinstance(parameters, basestring):
@@ -27,6 +31,7 @@ def prepare_match(parameters):
             context.backreferences = matches[0].groups()
             context.match_field = regexes[0][0]
 
+    handle_match.phase = PHASE_MATCH
     return handle_match
 
 
@@ -39,6 +44,7 @@ def prepare_set(parameters):
         for fieldname, template in parameters:
             message[fieldname] = context.interpolate_template(template)
 
+    handle_set.phase = PHASE_MANIPULATE
     return handle_set
 
 
@@ -133,7 +139,8 @@ def prepare_statsd(parameters):
 
 def prepare_drop(parameters):
     if str(parameters).lower() in TRUTH_VALUES:
-        return lambda message, parameters: DROP_MESSAGE
+        result = lambda message, parameters: DROP_MESSAGE
+        return result
 
 
 def prepare_stdout(parameters):

@@ -75,14 +75,12 @@ class Pipeline():
 
     def prepare_step(self, step_config):
         sequence = []
-        for stepname in ['match']:
-            if stepname in step_config:
-                parameters = step_config.pop(stepname, None)
-                sequence.append(self.prepare_action(stepname, parameters))
-
         sequence.extend(
             self.prepare_action(stepname, parameters)
             for (stepname, parameters) in step_config.items())
+
+        sequence.sort(key=lambda action: getattr(action, "phase",
+                                                 filters.PHASE_FORWARD))
 
         return sequence
 

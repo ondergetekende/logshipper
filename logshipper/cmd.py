@@ -1,10 +1,7 @@
-import gevent.monkey
-gevent.monkey.patch_all()
-
 import argparse
-import gevent
 import logging
 import pkg_resources
+import eventlet
 import yaml
 
 
@@ -70,15 +67,12 @@ def main():
     if not input_handlers:
         raise Exception("No inputs. Nothing to do")
 
-    stop_event = gevent.event.Event()
-
     for input_handler in input_handlers:
         input_handler.start()
 
     try:
-        stop_event.wait()
+        while True:
+            eventlet.sleep(1.0)
     finally:
-        # The wait failed, usually indicating an interruption, e.g. ctrl-c
-        stop_event.set()
         for input_handler in input_handlers:
             input_handler.stop()

@@ -1,9 +1,10 @@
+import eventlet
 import re
 import time
-from gevent.server import StreamServer
 
-SYSLOG_PRIORITIES = ['emergency', 'alert',  'critical',      'error',
-                     'warning',   'notice', 'informational', 'debug']
+
+SYSLOG_PRIORITIES = ['emergency', 'alert', 'critical', 'error', 'warning',
+                     'notice', 'informational', 'debug']
 SYSLOG_FACILITIES = ([
     'kern', 'user', 'mail', 'daemon',
     'auth', 'syslog', 'lpr', 'news',
@@ -31,12 +32,29 @@ def parse_syslog(message):
         }
 
 
-class Syslog(StreamServer):
+class Syslog:
     def __init__(self, bind="127.0.0.1", port=514):
-        StreamServer.__init__(self, (bind, port))
+        self.bind = bind
+        self.port = port
+        self.server = None
+        self.should_run = False
 
-    def set_handler(self, handler):
-        self.on_message = handler
+    def start(self):
+        if not self.server:
+            self.should_run = True
+            self.server = eventlet.listen((bind, port))
+            eventlet.spawn(eventlet.serve(self.server, self.handle))
+
+    def stop(self):
+        self.should_run = False
+        self.server.close()
+        self.server = None
+
+    def accept_loop(self):
+
+        while self.should_run:
+            new_sock, address = self.server.accept()
+            self.pool.spawn_n(handle, new_sock.makefile('r', 4096))
 
     def handle(self, socket, address):
         fileobj = socket.makefile('r', 4096)

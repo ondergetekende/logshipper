@@ -1,5 +1,7 @@
 import re
 
+import six
+
 SKIP_STEP = 1
 DROP_MESSAGE = 2
 TRUTH_VALUES = set(['1', 'true', 'yes', 'on'])
@@ -9,8 +11,9 @@ PHASE_DROP = 20
 PHASE_MANIPULATE = 30
 PHASE_FORWARD = 40
 
+
 def prepare_match(parameters):
-    if isinstance(parameters, basestring):
+    if isinstance(parameters, six.string_types):
         parameters = {"message": parameters}
 
     regexes = [(a, re.compile(b)) for (a, b) in parameters.items()]
@@ -49,8 +52,9 @@ def prepare_set(parameters):
 
 
 def prepare_rabbitmq(parameters):
-    import pika
     import json
+
+    import pika
 
     conn_parameters = pika.connection.ConnectionParameters(
         credentials=pika.PlainCredentials(
@@ -97,7 +101,7 @@ def prepare_statsd(parameters):
     name_is_template = '{' in name_template
     multiplier = float(parameters.get('multiplier', 1.0))
     val_template = parameters.get('value', "1")
-    if isinstance(val_template, basestring) and '{' in val_template:
+    if isinstance(val_template, six.string_types) and '{' in val_template:
         val_is_template = True
     else:
         val_is_template = False
@@ -138,13 +142,11 @@ def prepare_statsd(parameters):
 
 
 def prepare_drop(parameters):
-    if str(parameters).lower() in TRUTH_VALUES:
-        result = lambda message, parameters: DROP_MESSAGE
-        return result
+    return lambda message, parameters: DROP_MESSAGE
 
 
 def prepare_stdout(parameters):
-    format = (parameters if isinstance(parameters, basestring)
+    format = (parameters if isinstance(parameters, six.string_types)
               else parameters.get("format", "{message}"))
     format = format.rstrip("\n\r") + "\n"
     import sys

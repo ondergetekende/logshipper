@@ -1,5 +1,5 @@
 eventlet
-greenlet
-pyyaml
 pika
 python-statsd
+pyyaml
+six

@@ -1,6 +1,7 @@
-import eventlet
 import re
 import time
+
+import eventlet
 
 
 SYSLOG_PRIORITIES = ['emergency', 'alert', 'critical', 'error', 'warning',
@@ -42,7 +43,7 @@ class Syslog:
     def start(self):
         if not self.server:
             self.should_run = True
-            self.server = eventlet.listen((bind, port))
+            self.server = eventlet.listen((self.bind, self.port))
             eventlet.spawn(eventlet.serve(self.server, self.handle))
 
     def stop(self):
@@ -54,7 +55,7 @@ class Syslog:
 
         while self.should_run:
             new_sock, address = self.server.accept()
-            self.pool.spawn_n(handle, new_sock.makefile('r', 4096))
+            self.pool.spawn_n(self.handle, new_sock.makefile('r', 4096))
 
     def handle(self, socket, address):
         fileobj = socket.makefile('r', 4096)

@@ -1,11 +1,12 @@
 import logging
 import os
-import pkg_resources
 import time
+
+import pkg_resources
 import yaml
 
+import logshipper.context
 from logshipper import filters
-from logshipper.context import Context
 
 LOG = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class Pipeline():
         return filter_factory(parameters)
 
     def process(self, message):
-        context = Context(self.manager)
+        context = logshipper.context.Context(self.manager)
         for step in self.steps:
             context.next_step()
             for substep in step:

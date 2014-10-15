@@ -1,11 +1,12 @@
 import argparse
 import logging
-import pkg_resources
+
 import eventlet
+import pkg_resources
 import yaml
 
 
-from logshipper.pipeline import PipelineManager
+from logshipper import pipeline
 
 ARGS = None
 LOG = None
@@ -40,8 +41,8 @@ def main():
     logging.basicConfig(level=log_level)
     LOG = logging.getLogger()
 
-    pipeline_manager = PipelineManager(ARGS.pipeline_path,
-                                       reload_interval=ARGS.pipeline_reload)
+    pipeline_manager = pipeline.PipelineManager(
+        ARGS.pipeline_path, reload_interval=ARGS.pipeline_reload)
 
     input_factories = dict(
         (entrypoint.name, entrypoint) for entrypoint in

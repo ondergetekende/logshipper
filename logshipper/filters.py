@@ -5,11 +5,6 @@ DROP_MESSAGE = 2
 TRUTH_VALUES = set(['1', 'true', 'yes', 'on'])
 
 
-def interpolate_template(template, context):
-    return template.format(*context.get('pargs', []),
-                           **context.get('variables', {}))
-
-
 def prepare_match(parameters):
     if isinstance(parameters, basestring):
         parameters = {"message": parameters}
@@ -26,11 +21,11 @@ def prepare_match(parameters):
             matches.append(m)
 
         for m in matches:
-            context['variables'].update(m.groupdict())
+            context.variables.update(m.groupdict())
 
         if len(matches) == 1:
-            context['pargs'] = matches[0].groups()
-            context['match_field'] = regexes[0][0]
+            context.backreferences = matches[0].groups()
+            context.match_field = regexes[0][0]
 
     return handle_match
 
@@ -42,7 +37,7 @@ def prepare_set(parameters):
 
     def handle_set(message, context):
         for fieldname, template in parameters:
-            message[fieldname] = interpolate_template(template, context)
+            message[fieldname] = context.interpolate_template(template)
 
     return handle_set
 
@@ -119,12 +114,12 @@ def prepare_statsd(parameters):
 
     def handle_statsd(message, context):
         if name_is_template:
-            name = interpolate_template(name_template, context)
+            name = context.interpolate_template(name_template)
         else:
             name = name_template
 
         if val_is_template:
-            value = float(interpolate_template(val_template, context))
+            value = float(context.interpolate_template(val_template))
         else:
             value = val_template
 
@@ -148,7 +143,7 @@ def prepare_stdout(parameters):
     import sys
 
     def handle_stdout(message, context):
-        message = interpolate_template(format, context)
+        message = context.interpolate_template(format)
         sys.stdout.write(message)
 
     return handle_stdout

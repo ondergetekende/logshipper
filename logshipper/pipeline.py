@@ -6,6 +6,7 @@ import yaml
 import yaml.constructor
 
 from logshipper import filters
+from logshipper.context import Context
 
 LOG = logging.getLogger(__name__)
 
@@ -62,7 +63,8 @@ class OrderedDictYAMLLoader(yaml.Loader):
 
 
 class Pipeline():
-    def __init__(self, pipeline_yaml):
+    def __init__(self, pipeline_yaml, manager):
+        self.manager = manager
         pipeline = yaml.load(pipeline_yaml)
         self.filter_factories = dict(
             (entrypoint.name, entrypoint) for entrypoint in
@@ -90,9 +92,9 @@ class Pipeline():
         return filter_factory(parameters)
 
     def process(self, message):
-        variables = {}
+        context = Context(self.manager)
         for step in self.steps:
-            context = {'variables': variables}
+            context.next_step()
             for substep in step:
                 result = substep(message, context)
                 if result == filters.DROP_MESSAGE:
@@ -108,6 +110,7 @@ class PipelineManager():
         self.path = path
         self.pipelines = {}
         self.reload_interval = reload_interval
+        self.recursion_depth = 0
 
     def get(self, name="default"):
         try:
@@ -131,7 +134,7 @@ class PipelineManager():
 
             if s.st_mtime > pipeline['mtime']:
                 with open(pipeline['path'], 'r') as yaml_file:
-                    pipeline['pipeline'] = Pipeline(yaml_file.read())
+                    pipeline['pipeline'] = Pipeline(yaml_file.read(), self)
                 pipeline['mtime'] = s.st_mtime
 
             pipeline['reload_time'] = time.time() + self.reload_interval
@@ -139,6 +142,12 @@ class PipelineManager():
         return pipeline['pipeline']
 
     def process_message(self, message, pipeline_name):
-        pipeline = self.get(pipeline_name)
-        pipeline.process(message)
+        if self.recursion_depth > 10:
+            raise Exception("Recursion to deep")
 
+        try:
+            self.recursion_depth += 1
+            pipeline = self.get(pipeline_name)
+            pipeline.process(message)
+        finally:
+            self.recursion_depth -= 1

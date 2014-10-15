@@ -17,52 +17,95 @@
 import glob
 
 import eventlet
-import eventlet.green.os as os
+import eventlet.tpool
+import pyinotify
 import six
+import os
 
 
 class Tail:
+    class FileTail:
+        __slots__ = ['fd', 'buffer']
+        ctime = None
+        fd = None
+        buffer = ""
+
     def __init__(self, filename):
         if isinstance(filename, six.string_types):
             filename = [filename]
 
-        self.tails = {}
-        self.globs = filename
+        self.handler = None
+        self.globs = [os.path.abspath(f) for f in filename]
         self.updater_thread = None
+        self.watch_manager = pyinotify.WatchManager()
+        self.tails = {}
+        mask = sum([pyinotify.IN_MODIFY,
+                    pyinotify.IN_CLOSE_WRITE,
+                    pyinotify.IN_CREATE,
+                    pyinotify.IN_DELETE,
+                    pyinotify.IN_DELETE_SELF])
+
+        for fileglob in self.globs:
+            self.watch_manager.add_watch(fileglob, mask, do_glob=True,
+                                         auto_add=True)
+
+        notifier = pyinotify.Notifier(self.watch_manager, self._inotify)
+        self.notifier = eventlet.tpool.Proxy(notifier)
+
+    def _inotify(self, event):
+        self.process_tail(event.path)
+
+    def set_handler(self, handler):
+        self.handler = handler
 
     def start(self):
-        if not self.updater_thread:
-            self.should_run = True
-            self.update_tails(self.globs, do_read_all=False)
-
-    def _updater_loop(self):
-        while True:
-            eventlet.sleep(60)
-            self.update_tails(self.globs, do_read_all=True)
-
-    def update_tails(self, globs, do_read_all):
-        inodes = set()
-        for file in globs:
-            for filename in glob.iglob(file):
-                stat = os.lstat(filename)
-                inodes.add(stat.st_inode)
-                if stat.st_inode not in self.tails:
-                    thread = eventlet.spawn_n(self.tail, filename, do_read_all)
-                    self.tails[stat.st_inode] = thread
-
-        for vanished in (set(self.tails) - inodes):
-            tail = self.tails.pop(vanished)
-            tail.kill()
+        self.should_run = True
+        self.update_tails(self.globs, do_read_all=False)
+        eventlet.spawn(self.notifier.loop, lambda _: not self.should_run)
 
     def stop(self):
         self.should_run = False
-        self.update_tails([], do_read_all=False)
+        self.notifier.stop()
+        self.update_tails([])
 
-    def _tail(self, filename, do_read_all):
-        fd = os.open(filename, os.O_RDONLY)
-        if not do_read_all:
-            os.lseek(fd, 0, os.SEEK_END)
+    def process_tail(self, path, do_read_all=True):
+        try:
+            tail = self.tails[path]
+        except KeyError:
+            self.tails[path] = tail = Tail.FileTail()
+            tail.fd = os.open(path, os.O_RDONLY)
+            stat = os.lstat(path)
+            tail.ctime = stat.st_ctime
+            if not do_read_all:
+                os.lseek(tail.fd, 0, os.SEEK_END)
 
         while True:
-            buff = os.read(fd, 1024)
-            print(buff)
+            buff = os.read(tail.fd, 1024)
+            if not buff:
+                return
+
+            if tail.buffer:
+                buff = tail.buff + buff
+                tail.buff = ""
+
+            lines = buff.splitlines(True)
+            if lines[-1][-1] != "\n":  # incomplete line in buffer
+                tail.buffer = lines[-1][-1]
+                lines = lines[:-1]
+
+            for line in lines:
+                self.handler({'message': line[:-1]})
+
+    def update_tails(self, globs, do_read_all=True):
+        watches = set()
+
+        for fileglob in globs:
+            for path in glob.iglob(fileglob):
+                self.process_tail(path, do_read_all)
+                watches.add(path)
+
+        for vanished in (set(self.tails) - watches):
+            tail = self.tails.pop(vanished)
+            if tail.buffer:
+                self.handler({'message': tail.buffer})
+            os.close(tail.fd)

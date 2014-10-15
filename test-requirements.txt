@@ -1,0 +1,4 @@
+hacking
+coverage
+nose
+nosexcover

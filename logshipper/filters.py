@@ -167,3 +167,29 @@ def prepare_debug(parameters):
         sys.stdout.write("\n")
 
     return handle_debug
+
+
+def prepare_jump(parameters):
+    pipeline_name = (parameters if isinstance(parameters, six.string_types)
+                     else parameters.get("parameters"))
+    if not pipeline_name:
+        raise Exception("parameter pipeline required")
+
+    def handle_jump(message, context):
+        context.pipeline_manager.process_message(message, pipeline_name)
+        return DROP_MESSAGE
+
+    return handle_jump
+
+
+def prepare_call(parameters):
+    pipeline_name = (parameters if isinstance(parameters, six.string_types)
+                     else parameters.get("parameters"))
+    if not pipeline_name:
+        raise Exception("parameter pipeline required")
+
+    def handle_call(message, context):
+        context.pipeline_manager.process_message(message.clone(),
+                                                 pipeline_name)
+
+    return handle_call

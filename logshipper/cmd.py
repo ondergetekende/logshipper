@@ -88,7 +88,7 @@ def main():
 
     try:
         while True:
-            eventlet.sleep(1.0)
+            eventlet.sleep(-1)
     finally:
         for input_handler in input_handlers:
             input_handler.stop()

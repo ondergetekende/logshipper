@@ -15,12 +15,12 @@
 
 
 import glob
+import os
 
 import eventlet
 import eventlet.tpool
 import pyinotify
 import six
-import os
 
 
 class Tail:

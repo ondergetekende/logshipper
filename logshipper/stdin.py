@@ -20,15 +20,18 @@ import eventlet.tpool
 
 
 class Stdin:
-    def set_handler(self, handler):
-        self.handler = handler
+    def __init__(self):
+        self.handler = None
         self.should_run = True
         self.thread = None
+
+    def set_handler(self, handler):
+        self.handler = handler
 
     def start(self):
         self.should_run = True
         if not self.thread:
-            self.thread = eventlet.spawn(self._run)
+            eventlet.spawn(self._run)
 
     def _run(self):
         while self.should_run:

@@ -24,6 +24,7 @@ import pyinotify
 import six
 
 import logshipper.pyinotify_eventlet_notifier
+import logshipper.input
 
 LOG = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ INOTIFY_DIR_MASK = (pyinotify.IN_CREATE | pyinotify.IN_DELETE |
                     pyinotify.IN_MOVED_FROM | pyinotify.IN_MOVED_TO)
 
 
-class Tail:
+class Tail(logshipper.input.BaseInput):
     class FileTail:
         __slots__ = []
         fd = None
@@ -45,9 +46,7 @@ class Tail:
         if isinstance(filename, six.string_types):
             filename = [filename]
 
-        self.handler = None
         self.globs = [os.path.abspath(f) for f in filename]
-        self.notifier_thread = None
         self.watch_manager = pyinotify.WatchManager()
         self.tails = {}
         self.dir_watches = {}
@@ -74,22 +73,13 @@ class Tail:
         if not event.dir:
             self.update_tails(self.globs)
 
-    def set_handler(self, handler):
-        self.handler = handler
-
-    def start(self):
-        self.should_run = True
+    def _run(self):
         self.update_tails(self.globs, do_read_all=False)
-        self.notifier_thread = eventlet.spawn(self._notifier_loop)
-
-    def stop(self):
-        self.should_run = False
-        self.notifier_thread.kill()
-        self.update_tails([])
-
-    def _notifier_loop(self):
-        while self.should_run:
-            self.notifier.loop(lambda _: not self.should_run)
+        try:
+            while self.should_run:
+                self.notifier.loop(lambda _: not self.should_run)
+        finally:
+            self.update_tails([])
 
     def read_tail(self, tail):
         while True:

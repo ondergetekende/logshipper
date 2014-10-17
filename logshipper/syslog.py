@@ -52,9 +52,12 @@ def parse_syslog(message):
 class Syslog:
     def __init__(self, bind="127.0.0.1", port=514):
         self.bind = bind
-        self.port = port
+        self.port = int(port)
         self.server = None
         self.should_run = False
+
+    def set_handler(self, handler):
+        self.handler = handler
 
     def start(self):
         if not self.server:
@@ -80,4 +83,4 @@ class Syslog:
             line = line.rstrip('\r\n').decode('utf-8')
             message = parse_syslog(line)
             if message:
-                self.on_message(message)
+                self.handler(message)

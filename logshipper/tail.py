@@ -15,20 +15,31 @@
 
 
 import glob
-import os
+import logging
 
 import eventlet
+from eventlet.green import os
 import eventlet.tpool
 import pyinotify
 import six
 
+import logshipper.pyinotify_eventlet_notifier
+
+LOG = logging.getLogger(__name__)
+
+INOTIFY_FILE_MASK = pyinotify.IN_MODIFY | pyinotify.IN_OPEN
+INOTIFY_DIR_MASK = (pyinotify.IN_CREATE | pyinotify.IN_DELETE |
+                    pyinotify.IN_MOVED_FROM | pyinotify.IN_MOVED_TO)
+
 
 class Tail:
     class FileTail:
-        __slots__ = ['fd', 'buffer']
-        ctime = None
+        __slots__ = []
         fd = None
+        path = None
         buffer = ""
+        stat = None
+        rescan = True
 
     def __init__(self, filename):
         if isinstance(filename, six.string_types):
@@ -36,24 +47,32 @@ class Tail:
 
         self.handler = None
         self.globs = [os.path.abspath(f) for f in filename]
-        self.updater_thread = None
+        self.notifier_thread = None
         self.watch_manager = pyinotify.WatchManager()
         self.tails = {}
-        mask = sum([pyinotify.IN_MODIFY,
-                    pyinotify.IN_CLOSE_WRITE,
-                    pyinotify.IN_CREATE,
-                    pyinotify.IN_DELETE,
-                    pyinotify.IN_DELETE_SELF])
+        self.dir_watches = {}
 
-        for fileglob in self.globs:
-            self.watch_manager.add_watch(fileglob, mask, do_glob=True,
-                                         auto_add=True)
+        self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
+            self.watch_manager)
 
-        notifier = pyinotify.Notifier(self.watch_manager, self._inotify)
-        self.notifier = eventlet.tpool.Proxy(notifier)
+    def _inotify_file(self, event):
+        tail = self.tails.get(event.path)
+        if tail:
+            if event.mask & pyinotify.IN_MODIFY:
+                if tail.rescan:
+                    self.process_tail(event.path)
+                else:
+                    self.read_tail(tail)
+            else:
+                tail.rescan = True
 
-    def _inotify(self, event):
-        self.process_tail(event.path)
+    def _inotify_dir(self, event):
+        tail = self.tails.get(event.path)
+        if tail:
+            self.process_tail(event.path)
+
+        if not event.dir:
+            self.update_tails(self.globs)
 
     def set_handler(self, handler):
         self.handler = handler
@@ -61,29 +80,24 @@ class Tail:
     def start(self):
         self.should_run = True
         self.update_tails(self.globs, do_read_all=False)
-        eventlet.spawn(self.notifier.loop, lambda _: not self.should_run)
+        self.notifier_thread = eventlet.spawn(self._notifier_loop)
 
     def stop(self):
         self.should_run = False
-        self.notifier.stop()
+        self.notifier_thread.kill()
         self.update_tails([])
 
-    def process_tail(self, path, do_read_all=True):
-        try:
-            tail = self.tails[path]
-        except KeyError:
-            self.tails[path] = tail = Tail.FileTail()
-            tail.fd = os.open(path, os.O_RDONLY)
-            stat = os.lstat(path)
-            tail.ctime = stat.st_ctime
-            if not do_read_all:
-                os.lseek(tail.fd, 0, os.SEEK_END)
+    def _notifier_loop(self):
+        while self.should_run:
+            self.notifier.loop(lambda _: not self.should_run)
 
+    def read_tail(self, tail):
         while True:
             buff = os.read(tail.fd, 1024)
             if not buff:
                 return
 
+            # Append to last buffer
             if tail.buffer:
                 buff = tail.buff + buff
                 tail.buff = ""
@@ -96,16 +110,76 @@ class Tail:
             for line in lines:
                 self.handler({'message': line[:-1]})
 
+    def process_tail(self, path, should_seek=False):
+        file_stat = os.stat(path)
+
+        LOG.debug("process_tail for %s", path)
+        # Find or create a tail.
+        tail = self.tails.get(path)
+        if tail:
+            fd_stat = os.fstat(tail.fd)
+            if fd_stat.st_size > os.lseek(tail.fd, 0, os.SEEK_CUR):
+                LOG.debug("Something to read")
+                self.read_tail(tail)
+            if (tail.stat.st_size > file_stat.st_size or
+                    tail.stat.st_ino != file_stat.st_ino):
+                LOG.info("%s looks rotated. reopening", path)
+                self.close_tail(tail)
+                tail = None
+                should_seek = False
+
+        if not tail:
+            LOG.info("Tailing %s", path)
+            self.tails[path] = tail = self.open_tail(path, should_seek)
+            tail.stat = file_stat
+            self.read_tail(tail)
+
+        tail.rescan = False
+
     def update_tails(self, globs, do_read_all=True):
         watches = set()
 
         for fileglob in globs:
             for path in glob.iglob(fileglob):
-                self.process_tail(path, do_read_all)
+                self.process_tail(path, not do_read_all)
                 watches.add(path)
 
         for vanished in (set(self.tails) - watches):
-            tail = self.tails.pop(vanished)
-            if tail.buffer:
-                self.handler({'message': tail.buffer})
-            os.close(tail.fd)
+            LOG.info("%s vanished. Stop tailing", vanished)
+            self.close_tail(self.tails.pop(vanished))
+
+        for path in globs:
+            while len(path) > 1:
+                path = os.path.dirname(path)
+                if path in self.dir_watches:
+                    continue
+
+                LOG.debug("Monitoring dir %s", path)
+
+                self.dir_watches[path] = self.watch_manager.add_watch(
+                    path, INOTIFY_DIR_MASK, do_glob=True,
+                    proc_fun=self._inotify_dir)
+
+                if '*' not in path and '?' not in path:
+                    break
+
+    def open_tail(self, path, go_to_end=False):
+        tail = Tail.FileTail()
+        tail.fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        tail.path = path
+
+        if go_to_end:
+            os.lseek(tail.fd, 0, os.SEEK_END)
+
+        wd = self.watch_manager.add_watch(
+            path, INOTIFY_FILE_MASK,
+            proc_fun=self._inotify_file)
+
+        tail.wd = wd.pop(path)
+        return tail
+
+    def close_tail(self, tail):
+        self.watch_manager.rm_watch(tail.wd)
+        os.close(tail.fd)
+        if tail.buffer:
+            self.handler({'message': tail.buffer})

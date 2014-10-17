@@ -20,11 +20,39 @@ import eventlet
 import pkg_resources
 import yaml
 
-
-from logshipper import pipeline
+import logshipper.pipeline
 
 ARGS = None
 LOG = None
+
+
+def load_input_configuration(filenames, pipeline_manager):
+    input_factories = dict(
+        (entrypoint.name, entrypoint) for entrypoint in
+        pkg_resources.iter_entry_points("logshipper.inputs")
+    )
+
+    input_handlers = []
+
+    for input_config in filenames:
+        for input_spec in yaml.load(input_config.read()):
+            pipeline_name = input_spec.pop("pipeline", "default")
+            pipeline = pipeline_manager.get(pipeline_name)
+            if not pipeline:
+                raise Exception("Pipeline %s not found" % pipeline_name)
+
+            if len(input_spec) != 1:
+                raise Exception("Need exactly one handler")
+
+            handler_name, args = input_spec.items()[0]
+            endpoint = input_factories[handler_name]
+            input_handler = endpoint.load()(**args)
+            input_handler.set_handler(
+                lambda m: pipeline_manager.process_message(m, pipeline_name))
+
+            input_handlers.append(input_handler)
+
+    return input_handlers
 
 
 def main():
@@ -54,31 +82,13 @@ def main():
         log_level = 'WARNING'
 
     logging.basicConfig(level=log_level)
-    LOG = logging.getLogger()
+    LOG = logging.getLogger(__name__)
 
-    pipeline_manager = pipeline.PipelineManager(
+    pipeline_manager = logshipper.pipeline.PipelineManager(
         ARGS.pipeline_path, reload_interval=ARGS.pipeline_reload)
 
-    input_factories = dict(
-        (entrypoint.name, entrypoint) for entrypoint in
-        pkg_resources.iter_entry_points("logshipper.inputs")
-    )
-
-    input_handlers = []
-
-    for input_config in ARGS.input_config:
-        for input_spec in yaml.load(input_config.read()):
-            pipeline_name = input_spec.pop("pipeline", "default")
-            if len(input_spec) != 1:
-                raise Exception("Need exactly one handler")
-
-            handler_name, args = input_spec.items()[0]
-            endpoint = input_factories[handler_name]
-            input_handler = endpoint.load()(**args)
-            input_handler.set_handler(
-                lambda m: pipeline_manager.process_message(m, pipeline_name))
-
-            input_handlers.append(input_handler)
+    input_handlers = load_input_configuration(ARGS.input_config,
+                                              pipeline_manager)
 
     if not input_handlers:
         raise Exception("No inputs. Nothing to do")
@@ -88,7 +98,7 @@ def main():
 
     try:
         while True:
-            eventlet.sleep(-1)
+            eventlet.sleep(86400)
     finally:
         for input_handler in input_handlers:
             input_handler.stop()

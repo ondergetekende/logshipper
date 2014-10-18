@@ -18,6 +18,7 @@ import logging
 import os
 import time
 
+import eventlet
 import pkg_resources
 import yaml
 
@@ -37,6 +38,7 @@ class Pipeline():
         )
 
         self.steps = [self.prepare_step(step) for step in pipeline]
+        self.eventlet_pool = eventlet.greenpool.GreenPool()
 
     def prepare_step(self, step_config):
         sequence = []
@@ -55,13 +57,17 @@ class Pipeline():
         return filter_factory(parameters)
 
     def process(self, message):
+        message.setdefault('timestamp', time.time())
+        eventlet.spawn_n(self.process_with_result, message)
+
+    def process_with_result(self, message):
         context = logshipper.context.Context(self.manager)
         for step in self.steps:
             context.next_step()
-            for substep in step:
-                result = substep(message, context)
+            for action in step:
+                result = action(message, context)
                 if result == filters.DROP_MESSAGE:
-                    return None
+                    return
                 elif result == filters.SKIP_STEP:
                     break
 

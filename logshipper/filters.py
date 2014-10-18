@@ -23,9 +23,9 @@ DROP_MESSAGE = 2
 TRUTH_VALUES = set(['1', 'true', 'yes', 'on'])
 
 PHASE_MATCH = 10
-PHASE_DROP = 20
-PHASE_MANIPULATE = 30
-PHASE_FORWARD = 40
+PHASE_MANIPULATE = 20
+PHASE_FORWARD = 30
+PHASE_DROP = 40
 
 
 def prepare_match(parameters):

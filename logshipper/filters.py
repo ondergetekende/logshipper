@@ -44,7 +44,7 @@ def prepare_match(parameters):
             matches.append(m)
 
         for m in matches:
-            context.variables.update(m.groupdict())
+            message.update(m.groupdict())
 
         if len(matches) == 1:
             context.backreferences = [matches[0].group(0)]

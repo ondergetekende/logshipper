@@ -61,7 +61,7 @@ class Pipeline():
         eventlet.spawn_n(self.process_with_result, message)
 
     def process_with_result(self, message):
-        context = logshipper.context.Context(self.manager)
+        context = logshipper.context.Context(message, self.manager)
         for step in self.steps:
             context.next_step()
             for action in step:

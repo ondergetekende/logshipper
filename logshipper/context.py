@@ -15,18 +15,21 @@
 
 
 class Context():
-    __slots__ = ['pipeline_manager', 'variables', 'match', 'match_field',
+    __slots__ = ['pipeline_manager', 'message', 'match', 'match_field',
                  'backreferences']
 
-    def __init__(self, pipeline_manager):
+    def __init__(self, message, pipeline_manager):
         self.pipeline_manager = pipeline_manager
-        self.variables = {}
+        self.message = message
         self.match = None
         self.match_field = None
         self.backreferences = []
 
     def interpolate_template(self, template):
-        return template.format(*self.backreferences, **self.variables)
+        if not template:
+            return template
+
+        return template.format(*self.backreferences, **self.message)
 
     def next_step(self):
         self.match = None

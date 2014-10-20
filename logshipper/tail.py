@@ -32,6 +32,23 @@ INOTIFY_DIR_MASK = (pyinotify.IN_CREATE | pyinotify.IN_DELETE |
 
 
 class Tail(logshipper.input.BaseInput):
+    """Follows files, and processes new lines in those files as messages.
+
+    Glob-style wildcards are supported, and new files matching the wildcard
+    will be discovered.
+
+    Rotated files are automatically discovered, and reopened.
+
+    Example for ``input.yml``:
+
+    .. code:: yaml
+
+        - tail:
+            filename:
+            - /var/log/syslog
+            - /var/log/my_app/*.log
+    """
+
     class FileTail:
         __slots__ = []
         fd = None

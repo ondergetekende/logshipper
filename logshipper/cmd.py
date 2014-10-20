@@ -27,7 +27,7 @@ LOG = None
 def main():
     global LOG, ARGS
     parser = argparse.ArgumentParser(
-        description="Detects resources related to a specific host or resource")
+        description="Processes log messages and sends them elsewhere")
 
     parser.add_argument('--pipeline-path',
                         default="/etc/logshipper/pipelines/",

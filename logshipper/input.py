@@ -45,6 +45,17 @@ class BaseInput():
 
 
 class Stdin(BaseInput):
+    """Reads messages from stdin
+
+    Messages are separated by newlines. Whitespace at the end of a message
+    will get stripped.
+
+    Example for ``input.yml``:
+
+    .. code:: yaml
+
+        - stdin: {}
+    """
     def _run(self):
         while self.should_run:
             line = eventlet.tpool.execute(sys.stdin.readline)
@@ -62,6 +73,22 @@ SYSLOG_FACILITIES = ([
 
 
 class Syslog(BaseInput):
+    """Reads messages from syslog
+
+    Listens for syslog messages on a TCP socket. Note that if you want to
+    bind the (default) syslog port, you'll need to run logshipper as root.
+
+    Sets the ``facility`` and ``severity`` as defined by rfc3164.
+
+    Example for ``input.yml``:
+
+    .. code:: yaml
+
+        - syslog:
+            bind: 127.0.0.1
+            port: 1514
+    """
+
     pri_matcher = re.compile(r'<(\d{1,3})>')  # <134>
 
     def __init__(self, bind="127.0.0.1", port=514):

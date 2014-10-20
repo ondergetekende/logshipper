@@ -23,6 +23,7 @@ import logshipper.pipeline
 ARGS = None
 LOG = None
 
+
 def main():
     global LOG, ARGS
     parser = argparse.ArgumentParser(

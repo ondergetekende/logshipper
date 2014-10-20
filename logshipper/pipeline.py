@@ -149,7 +149,6 @@ class PipelineManager():
             pipelines = self.pipelines.values()
             self.pipelines = {}
             for pipeline in pipelines:
-                print repr(pipeline)
                 pipeline.stop()
 
     def _inotified(self, event):

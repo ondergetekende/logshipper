@@ -30,7 +30,7 @@ def main():
         description="Processes log messages and sends them elsewhere")
 
     parser.add_argument('--pipeline-path',
-                        default="/etc/logshipper/pipelines/",
+                        default="/etc/logshipper/",
                         help='Where to find pipelines (*.yml files)')
 
     parser.add_argument('--verbose', action='store_true')

@@ -17,7 +17,7 @@ import logging.config
 
 
 def prepare_logging(parameters):
-    """ Use python ``logging`` infrastructure.
+    """Use python ``logging`` infrastructure.
 
     ``logging`` allows you to use regular python logging handlers. The
     congfiguration tries to mimick the python logging configuration as much as
@@ -30,7 +30,7 @@ def prepare_logging(parameters):
         paramters will be filled automatically from the parameters defined
         below.
     ``formatter``
-        Defines the formatter to be used. 
+        Defines the formatter to be used.
     ``filters``
         Defines filters to be used. This is a list of filters, all of which
         are passed (in order) to the handler.
@@ -51,18 +51,22 @@ def prepare_logging(parameters):
     ``msg``
         The message format. Defaults to ``{message}``
 
-    - logging:
-        handler:
-          class: logging.StreamHandler
-          stream: ext://sys.stdout
-        formatter:
-          (): logging.Formatter
-          format: '%(asctime)s %(levelname)-8s %(name)-15s %(message)s'
-          datefmt: '%Y-%m-%d %H:%M:%S'
-        filters:
-        - (): logging.Filter
-          name: foo
-        level: WARNING
+    Example:
+
+    .. code:: yaml
+
+        - logging:
+            handler:
+              class: logging.StreamHandler
+              stream: ext://sys.stdout
+            formatter:
+              (): logging.Formatter
+              format: '%(asctime)s %(levelname)-8s %(name)-15s %(message)s'
+              datefmt: '%Y-%m-%d %H:%M:%S'
+            filters:
+            - (): logging.Filter
+              name: foo
+            level: WARNING
 
     """
 

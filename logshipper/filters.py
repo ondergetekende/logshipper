@@ -272,7 +272,7 @@ def prepare_statsd(parameters):
 
 
 def prepare_drop(parameters):
-    """ Drops messages
+    """Drops messages
 
     Messages that encounter a drop action are dropped from the pipeline. If the
     message has been sent to other pipelines using the ``call`` action, the
@@ -289,7 +289,7 @@ def prepare_drop(parameters):
 
 
 def prepare_stdout(parameters):
-    """ Sends messages to stdout
+    """Sends messages to stdout
 
     Example:
 
@@ -310,7 +310,7 @@ def prepare_stdout(parameters):
 
 
 def prepare_debug(parameters):
-    """ Sends a detailed representation of messages to stdout
+    """Sends a detailed representation of messages to stdout
 
     Example:
 
@@ -319,7 +319,7 @@ def prepare_debug(parameters):
         debug:
     """
 
-    import sys
+    import sys  # noqa
 
     def handle_debug(message, context):
         sys.stdout.write(repr(message))
@@ -329,7 +329,7 @@ def prepare_debug(parameters):
 
 
 def prepare_jump(parameters):
-    """ Jumps to a different pipeline.
+    """Jumps to a different pipeline.
 
     Sends the message to a different pipeline. The remainder of this pipeline
     is not executed. Note that there is a hardcoded limit of 10 jumps per
@@ -358,7 +358,7 @@ def prepare_jump(parameters):
 
 
 def prepare_call(parameters):
-    """ Dispatches messages to a different pipeline.
+    """Dispatches messages to a different pipeline.
 
     Sends the message to a different pipeline. The remainder of this pipeline
     will also be executed. Note that there is a hardcoded limit of 10 pipe

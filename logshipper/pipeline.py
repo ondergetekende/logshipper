@@ -14,6 +14,7 @@
 #    under the License.
 
 
+import datetime
 import logging
 import os
 import time
@@ -57,7 +58,7 @@ class Pipeline():
         return filter_factory(parameters)
 
     def process(self, message):
-        message.setdefault('timestamp', time.time())
+        message.setdefault('timestamp', datetime.datetime.now())
         eventlet.spawn_n(self.process_with_result, message)
 
     def process_with_result(self, message):

@@ -30,7 +30,7 @@ class Tests(unittest.TestCase):
     def test_match_1(self):
         handler = logshipper.filters.prepare_match("t(.st)")
         message = {"message": "This is a test."}
-        context = logshipper.context.Context(None)
+        context = logshipper.context.Context(message, None)
         result = handler(message, context)
 
         self.assertEqual(result, None)
@@ -38,7 +38,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(context.backreferences, ['test', 'est'])
 
         message = {"message": "This is not a match."}
-        context = logshipper.context.Context(None)
+        context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, logshipper.filters.SKIP_STEP)
         self.assertEqual(context.match_field, None)
@@ -48,20 +48,20 @@ class Tests(unittest.TestCase):
         handler = logshipper.filters.prepare_match({"message": "(t.st)",
                                                     "foo": "(?P<boo>b.r)"})
         message = {"message": "This is a test.", "foo": "barbar"}
-        context = logshipper.context.Context(None)
+        context = logshipper.context.Context(message, None)
         result = handler(message, context)
 
         self.assertEqual(result, None)
         self.assertEqual(context.match_field, None)
         self.assertEqual(context.backreferences, [])
-        self.assertEqual(context.variables, {'boo': 'bar'})
+        self.assertEqual(message['boo'], 'bar')
 
     def test_set(self):
-        handler = logshipper.filters.prepare_set({"foo": "l{1}{foo}r"})
-        message = {}
-        context = logshipper.context.Context(None)
+        handler = logshipper.filters.prepare_set({"baz": "l{1}{foo}r"})
+        message = {"foo": "shippe"}
+        context = logshipper.context.Context(message, None)
         context.backreferences = ("", "og",)
         context.variables = {"foo": "shippe"}
         result = handler(message, context)
         self.assertEqual(result, None)
-        self.assertEqual(message, {"foo": "logshipper"})
+        self.assertEqual(message['baz'], "logshipper")

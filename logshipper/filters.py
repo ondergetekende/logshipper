@@ -29,6 +29,44 @@ PHASE_DROP = 40
 
 
 def prepare_match(parameters):
+    """Matches regexes against message fields
+
+    The match action matches a regex to a specific field of a message. If the
+    regex doesn't match, the step is skipped. By default the ``message`` field
+    will be matched against the regex, but by providing a dictionary of regexes
+    you can select a different field, or multiple fields. If you're matching
+    against multiple fields, all regexes need to match for the step to be
+    executed.
+
+    Named groups in regular expressions get registered as additional fields
+    on the message. When matching against a single field, unnamed groups get
+    registered as backreferences, which can be used throughout the rest of the
+    step.
+
+    Example:
+
+
+    .. code:: yaml
+
+        match:
+            message: (Time):\s+(?P<time>\d+)
+        set:
+            part: "{1} {time}"
+
+        # In: {"message": "The Time: 1234"}
+        # Out: {"message": "The Time: 1234",
+        #       "part": "Time 1234",       -- from the set commend
+        #       "time": "1234"}            -- from the named group in the regex
+
+    A shorter syntax is available when there's a single match against the
+    ``message`` field, the above example is equivalent to:
+
+    .. code:: yaml
+
+        match: (start_time):\s+(?P<time>\d+)
+        set:
+            part: "{1} {time}"
+    """
     if isinstance(parameters, six.string_types):
         parameters = {"message": parameters}
 
@@ -56,6 +94,24 @@ def prepare_match(parameters):
 
 
 def prepare_set(parameters):
+    """Sets fields of messages
+
+    The ``set`` action allows you to set fields of messages. You can use it to
+    add conditional flags, or combine it with them match action to perform
+    message feature extraction.
+
+    .. code:: yaml
+
+        match: Foo=(\d+)
+        set:
+            foo: "{1}s"
+            has_foo: True
+
+        # In: {"message": "Foo=1234"}
+        # Out: {"message": "Foo=1234",
+        #       "foo": "1234s",
+        #       "has_foo": true}
+    """
     assert isinstance(parameters, dict)
 
     parameters = parameters.items()
@@ -69,9 +125,25 @@ def prepare_set(parameters):
 
 
 def prepare_rabbitmq(parameters):
-    import json
+    """Sends messages to RabbitMQ
 
-    import pika
+    username
+        RabbitMQ username, defaults to ``guest``
+    password
+        RabbitMQ password, defaults to ``guest``
+    host
+        RabbitMQ hostname, defaults to ``127.0.0.1``
+    port
+        RabbitMQ port, defaults to ``5672``
+    exchange
+        Defaults to ``logshipper``
+    queue
+        Defaults to ``logshipper``
+    key
+        The routing key. Defaults to ``logshipper``
+    """
+    import json  # noqa
+    import pika  # noqa
 
     conn_parameters = pika.connection.ConnectionParameters(
         credentials=pika.PlainCredentials(
@@ -105,7 +177,48 @@ def prepare_rabbitmq(parameters):
 
 
 def prepare_statsd(parameters):
-    import statsd
+    """Sends data to statsd
+
+    Sends a value to statsd.
+
+    host
+        defaults to ``127.0.0.1``
+    port
+        defaults to ``8125``
+    sample_rate
+        defaults to ``1.0``
+    type
+        Accepted values are ``counter``, ``gauge`` and ``timer``, defaults to
+        ``counter``
+    value
+        The value to send. Defaults to ``1.0``
+    multiplier
+        The amount to multiply the value by. Defaults to ``1.0``
+    delta
+        boolean, only used for gauge, whether to send differential values or
+        absolute values. Defaults to ``False``
+    prefix
+        the prefix for the stat name backreferences not allowed
+    name
+        the name for the stat, backreferences allowed (required)
+
+
+    Example:
+
+    .. code:: yaml
+
+        match: Duration: (\d+.\d+)s
+        statsd:
+            type: timer
+            value: {1}
+            prefix: appserver.request
+            name: duration
+        statsd:
+            prefix: appserver.request
+            name: count
+    """
+
+    import statsd  # noqa
 
     statsd_connection = statsd.Connection(
         host=parameters.get('host', '127.0.0.1'),
@@ -159,10 +272,31 @@ def prepare_statsd(parameters):
 
 
 def prepare_drop(parameters):
+    """ Drops messages
+
+    Messages that encounter a drop action are dropped from the pipeline. If the
+    message has been sent to other pipelines using the ``call`` action, the
+    the message will not be dropped from those pipelines.
+
+    Example:
+
+    .. code:: yaml
+
+        match: ^DEBUG
+        drop:
+    """
     return lambda message, parameters: DROP_MESSAGE
 
 
 def prepare_stdout(parameters):
+    """ Sends messages to stdout
+
+    Example:
+
+    .. code:: yaml
+
+        stdout: "{date}: {message}
+    """
     format = (parameters if isinstance(parameters, six.string_types)
               else parameters.get("format", "{message}"))
     format = format.rstrip("\n\r") + "\n"
@@ -176,6 +310,15 @@ def prepare_stdout(parameters):
 
 
 def prepare_debug(parameters):
+    """ Sends a detailed representation of messages to stdout
+
+    Example:
+
+    .. code:: yaml
+
+        debug:
+    """
+
     import sys
 
     def handle_debug(message, context):
@@ -186,8 +329,24 @@ def prepare_debug(parameters):
 
 
 def prepare_jump(parameters):
+    """ Jumps to a different pipeline.
+
+    Sends the message to a different pipeline. The remainder of this pipeline
+    is not executed. Note that there is a hardcoded limit of 10 jumps per
+    message (includes jumps made by ``call``)
+
+    Example:
+
+    .. code:: yaml
+
+        jump: my_pipeline
+
+        # equivalent to
+        call: my_pipeline
+        drop:
+    """
     pipeline_name = (parameters if isinstance(parameters, six.string_types)
-                     else parameters.get("parameters"))
+                     else parameters.get("pipeline"))
     if not pipeline_name:
         raise Exception("parameter pipeline required")
 
@@ -199,8 +358,20 @@ def prepare_jump(parameters):
 
 
 def prepare_call(parameters):
+    """ Dispatches messages to a different pipeline.
+
+    Sends the message to a different pipeline. The remainder of this pipeline
+    will also be executed. Note that there is a hardcoded limit of 10 pipe
+    changes per message (includes jumps made by ``jump``)
+
+    Example:
+
+    .. code:: yaml
+
+        call: my_pipeline
+    """
     pipeline_name = (parameters if isinstance(parameters, six.string_types)
-                     else parameters.get("parameters"))
+                     else parameters.get("pipeline"))
     if not pipeline_name:
         raise Exception("parameter pipeline required")
 

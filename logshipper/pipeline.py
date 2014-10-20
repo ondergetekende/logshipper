@@ -15,31 +15,69 @@
 
 
 import datetime
+import glob
 import logging
 import os
-import time
 
 import eventlet
 import pkg_resources
+import pyinotify
 import yaml
 
 import logshipper.context
 from logshipper import filters
+import logshipper.pyinotify_eventlet_notifier
 
 LOG = logging.getLogger(__name__)
 
+FILTER_FACTORIES = dict(
+    (entrypoint.name, entrypoint) for entrypoint in
+    pkg_resources.iter_entry_points("logshipper.filters")
+)
+INPUT_FACTORIES = dict(
+    (entrypoint.name, entrypoint) for entrypoint in
+    pkg_resources.iter_entry_points("logshipper.inputs")
+)
+
+PIPELINE_POOL = eventlet.greenpool.GreenPool()
+
 
 class Pipeline():
-    def __init__(self, pipeline_yaml, manager):
+    def __init__(self, manager):
         self.manager = manager
-        pipeline = yaml.load(pipeline_yaml)
-        self.filter_factories = dict(
-            (entrypoint.name, entrypoint) for entrypoint in
-            pkg_resources.iter_entry_points("logshipper.filters")
-        )
+        self.steps = []
+        self.inputs = []
 
-        self.steps = [self.prepare_step(step) for step in pipeline]
-        self.eventlet_pool = eventlet.greenpool.GreenPool()
+    def update(self, pipeline_yaml):
+        pipeline = yaml.load(pipeline_yaml)
+        self.stop()
+
+        self.steps = [self.prepare_step(step)
+                      for step in pipeline.get('steps', [])]
+
+        input_config = pipeline.get('inputs', [])
+        if isinstance(input_config, dict):
+            input_config = input_config.items()
+        else:
+            input_config = sum((c.items() for c in input_config), [])
+        self.inputs = [self.prepare_input(klass, params)
+                       for klass, params in input_config]
+        self.start()
+
+    def start(self):
+        for input_ in self.inputs:
+            input_.start()
+
+    def stop(self):
+        for input_ in self.inputs:
+            input_.stop()
+
+    def prepare_input(self, klass, params):
+        endpoint = INPUT_FACTORIES[klass]
+        filter_factory = endpoint.load()
+        input_ = filter_factory(**(params or {}))
+        input_.set_handler(self.process)
+        return input_
 
     def prepare_step(self, step_config):
         sequence = []
@@ -53,13 +91,13 @@ class Pipeline():
         return sequence
 
     def prepare_action(self, name, parameters):
-        endpoint = self.filter_factories[name]
+        endpoint = FILTER_FACTORIES[name]
         filter_factory = endpoint.load()
         return filter_factory(parameters)
 
     def process(self, message):
         message.setdefault('timestamp', datetime.datetime.now())
-        eventlet.spawn_n(self.process_with_result, message)
+        PIPELINE_POOL.spawn_n(self.process_with_result, message)
 
     def process_with_result(self, message):
         context = logshipper.context.Context(message, self.manager)
@@ -76,40 +114,62 @@ class Pipeline():
 
 
 class PipelineManager():
-    def __init__(self, path, reload_interval=60):
-        self.path = path
+    def __init__(self, path):
+        self.glob = os.path.join(path, "*.yml")
         self.pipelines = {}
-        self.reload_interval = reload_interval
         self.recursion_depth = 0
 
-    def get(self, name="default"):
+        self.watch_manager = pyinotify.WatchManager()
+        flags = (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE |
+                 pyinotify.IN_DELETE_SELF)
+        self.watch_manager.add_watch(path, flags, proc_fun=self._inotified)
+        self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
+            self.watch_manager)
+        self.thread = None
+
+    def start(self):
+        self.should_run = True
+        if not self.thread:
+            self.thread = eventlet.spawn(self._run)
+
+    def stop(self):
+        self.should_run = False
+        thread = self.thread
+        self.thread = None
+        thread.kill()
+
+    def _run(self):
+        try:
+            for path in glob.iglob(self.glob):
+                self.load_pipeline(path)
+
+            while self.should_run:
+                self.notifier.loop(lambda _: not self.should_run)
+        finally:
+            pipelines = self.pipelines.values()
+            self.pipelines = {}
+            for pipeline in pipelines:
+                print repr(pipeline)
+                pipeline.stop()
+
+    def _inotified(self, event):
+        name = os.path.basename(event.path).rsplit('.', 1)[0]
+        if event.mask == pyinotify.IN_CLOSE_WRITE:
+            self.load_pipeline(event.path)
+        elif event.mask in (pyinotify.IN_DELETE, pyinotify.IN_DELETE_SELF):
+            pipeline = self.pipelines.pop(name, None)
+            if pipeline:
+                pipeline.stop()
+
+    def load_pipeline(self, path):
+        name = os.path.basename(path).rsplit('.', 1)[0]
         try:
             pipeline = self.pipelines[name]
         except KeyError:
-            pipeline = self.pipelines[name] = {
-                "path": os.path.join(self.path, name + ".yml"),
-                "reload_time": 0,
-                "mtime": 0,
-                "pipeline": None,
-            }
+            pipeline = self.pipelines[name] = Pipeline(self)
 
-        if pipeline['reload_time'] < time.time():
-            try:
-                s = os.stat(pipeline['path'])
-            except OSError:
-                # Does not exist
-                LOG.warning("Requested pipeline %s does not exist",
-                            pipeline['path'])
-                return None
-
-            if s.st_mtime > pipeline['mtime']:
-                with open(pipeline['path'], 'r') as yaml_file:
-                    pipeline['pipeline'] = Pipeline(yaml_file.read(), self)
-                pipeline['mtime'] = s.st_mtime
-
-            pipeline['reload_time'] = time.time() + self.reload_interval
-
-        return pipeline['pipeline']
+        with open(path, 'r') as yaml_file:
+            pipeline.update(yaml_file.read())
 
     def process_message(self, message, pipeline_name):
         if self.recursion_depth > 10:
@@ -117,7 +177,6 @@ class PipelineManager():
 
         try:
             self.recursion_depth += 1
-            pipeline = self.get(pipeline_name)
-            pipeline.process(message)
+            self.pipelines[pipeline_name].process(message)
         finally:
             self.recursion_depth -= 1

@@ -17,43 +17,11 @@ import argparse
 import logging
 
 import eventlet
-import pkg_resources
-import yaml
 
 import logshipper.pipeline
 
 ARGS = None
 LOG = None
-
-
-def load_input_configuration(filenames, pipeline_manager):
-    input_factories = dict(
-        (entrypoint.name, entrypoint) for entrypoint in
-        pkg_resources.iter_entry_points("logshipper.inputs")
-    )
-
-    input_handlers = []
-
-    for input_config in filenames:
-        for input_spec in yaml.load(input_config.read()):
-            pipeline_name = input_spec.pop("pipeline", "default")
-            pipeline = pipeline_manager.get(pipeline_name)
-            if not pipeline:
-                raise Exception("Pipeline %s not found" % pipeline_name)
-
-            if len(input_spec) != 1:
-                raise Exception("Need exactly one handler")
-
-            handler_name, args = input_spec.items()[0]
-            endpoint = input_factories[handler_name]
-            input_handler = endpoint.load()(**args)
-            input_handler.set_handler(
-                lambda m: pipeline_manager.process_message(m, pipeline_name))
-
-            input_handlers.append(input_handler)
-
-    return input_handlers
-
 
 def main():
     global LOG, ARGS
@@ -63,11 +31,6 @@ def main():
     parser.add_argument('--pipeline-path',
                         default="/etc/logshipper/pipelines/",
                         help='Where to find pipelines (*.yml files)')
-    parser.add_argument('--pipeline-reload', type=float, default=60,
-                        help='Number of seconds between two pipeline reloads')
-
-    parser.add_argument('--input-config', nargs='+', default=[],
-                        type=argparse.FileType('r'))
 
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--debug', action='store_true')
@@ -84,21 +47,12 @@ def main():
     logging.basicConfig(level=log_level)
     LOG = logging.getLogger(__name__)
 
-    pipeline_manager = logshipper.pipeline.PipelineManager(
-        ARGS.pipeline_path, reload_interval=ARGS.pipeline_reload)
+    pipeline_manager = logshipper.pipeline.PipelineManager(ARGS.pipeline_path)
 
-    input_handlers = load_input_configuration(ARGS.input_config,
-                                              pipeline_manager)
-
-    if not input_handlers:
-        raise Exception("No inputs. Nothing to do")
-
-    for input_handler in input_handlers:
-        input_handler.start()
+    pipeline_manager.start()
 
     try:
         while True:
             eventlet.sleep(86400)
     finally:
-        for input_handler in input_handlers:
-            input_handler.stop()
+        pipeline_manager.stop()

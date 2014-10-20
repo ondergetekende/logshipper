@@ -1,5 +1,6 @@
 eventlet
 pika
+pyinotify
 python-statsd
 pyyaml
 six

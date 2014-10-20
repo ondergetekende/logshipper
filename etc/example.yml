@@ -1,0 +1,10 @@
+---
+
+- syslog:
+    port: 1514
+
+- stdin: {}
+
+- tail: 
+    filename:
+    - /var/log/syslog

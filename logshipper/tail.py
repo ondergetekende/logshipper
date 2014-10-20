@@ -17,14 +17,12 @@
 import glob
 import logging
 
-import eventlet
 from eventlet.green import os
-import eventlet.tpool
 import pyinotify
 import six
 
-import logshipper.pyinotify_eventlet_notifier
 import logshipper.input
+import logshipper.pyinotify_eventlet_notifier
 
 LOG = logging.getLogger(__name__)
 

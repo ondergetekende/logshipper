@@ -74,3 +74,12 @@ class Tests(unittest.TestCase):
         result = handler(message, context)
         self.assertEqual(result, None)
         self.assertEqual(message['baz'], "logshipper")
+
+    def test_unset(self):
+        handler = logshipper.filters.prepare_unset("foo, bar")
+        message = {"foo": "shippe", "baz": "yeah"}
+        context = logshipper.context.Context(message, None)
+        context.backreferences = ("", "og",)
+        result = handler(message, context)
+        self.assertEqual(result, None)
+        self.assertEqual(message, {"baz": "yeah"})

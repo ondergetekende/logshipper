@@ -42,6 +42,11 @@ set
 
 .. autofunction:: logshipper.filters.prepare_set
 
+unset
+-----
+
+.. autofunction:: logshipper.filters.prepare_unset
+
 drop
 ----
 

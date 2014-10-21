@@ -143,6 +143,27 @@ def prepare_set(parameters):
     return handle_set
 
 
+def prepare_unset(parameters):
+    """Unsets fields
+
+    Example:
+
+    .. code:: yaml
+
+        unset:
+        - foo
+    """
+    if isinstance(parameters, six.string_types):
+        parameters = [p.strip() for p in parameters.split(",")]
+
+    assert isinstance(parameters, list)
+
+    def handle_unset(message, context):
+        for field in parameters:
+            message.pop(field, None)
+    return handle_unset
+
+
 def prepare_rabbitmq(parameters):
     """Sends messages to RabbitMQ
 

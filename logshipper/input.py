@@ -155,13 +155,13 @@ class Syslog(BaseInput):
         eventlet.serve(self.server, self.handle)
 
     def handle(self, socket, address):
-        fileobj = socket.makefile('r', 4096)
+        fileobj = socket.makefile('r', 4096, encoding='utf-8')
 
         for line in fileobj:
             self.process_message(line)
 
     def process_message(self, line):
-        line = line.rstrip('\r\n').decode('utf-8')
+        line = line.rstrip('\r\n')
 
         for r in self.regexes:
             match = r.match(line)
@@ -172,7 +172,7 @@ class Syslog(BaseInput):
 
             prival = int(message.pop('prival'))
             if prival <= 255:
-                message['facility'] = SYSLOG_FACILITIES[prival / 8]
+                message['facility'] = SYSLOG_FACILITIES[prival // 8]
                 message['severity'] = SYSLOG_PRIORITIES[prival % 8]
 
             structured_data = message.pop('sd', '-')

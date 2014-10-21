@@ -56,6 +56,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(context.backreferences, [])
         self.assertEqual(message['boo'], 'bar')
 
+    def test_replace(self):
+        match_handler = logshipper.filters.prepare_match("t(.st)")
+        replace_handler = logshipper.filters.prepare_replace("T{1}")
+        message = {"message": "This is a test."}
+        context = logshipper.context.Context(message, None)
+        match_handler(message, context)
+        replace_handler(message, context)
+
+        self.assertEqual(message['message'], 'This is a Test.')
+
     def test_set(self):
         handler = logshipper.filters.prepare_set({"baz": "l{1}{foo}r"})
         message = {"foo": "shippe"}

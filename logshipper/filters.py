@@ -85,12 +85,27 @@ def prepare_match(parameters):
             message.update(m.groupdict())
 
         if len(matches) == 1:
+            context.match = matches[0]
             context.backreferences = [matches[0].group(0)]
             context.backreferences.extend(matches[0].groups())
             context.match_field = regexes[0][0]
 
     handle_match.phase = PHASE_MATCH
     return handle_match
+
+
+def prepare_replace(parameters):
+    def handle_replace(message, context):
+        base = message[context.match_field]
+        message[context.match_field] = "".join((
+            base[:context.match.start()],
+            context.interpolate_template(parameters),
+            base[context.match.end():],
+        ))
+        print message
+
+    handle_replace.phase = PHASE_MANIPULATE
+    return handle_replace
 
 
 def prepare_set(parameters):

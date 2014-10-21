@@ -71,7 +71,6 @@ class Tests(unittest.TestCase):
         message = {"foo": "shippe"}
         context = logshipper.context.Context(message, None)
         context.backreferences = ("", "og",)
-        context.variables = {"foo": "shippe"}
         result = handler(message, context)
         self.assertEqual(result, None)
         self.assertEqual(message['baz'], "logshipper")

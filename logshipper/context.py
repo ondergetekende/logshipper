@@ -14,6 +14,70 @@
 #    under the License.
 
 
+import string
+
+import six
+
+
+def prepare_template(template):
+
+    if not isinstance(template, six.string_types) or "{" not in template:
+        return lambda args, kwargs: template
+
+    fmt = string.Formatter()
+
+    namespace = {}
+    result = []
+    for literal, field_name, format_spec, conversion in fmt.parse(template):
+
+        # output the literal text
+        if literal:
+            result.append("%r" % literal)
+
+        basic_index = 1
+        highest_index = -1
+        # if there's a field, output it
+        if field_name is not None:
+            if "[" in field_name or "." in field_name:
+                namespace["fmt"] = fmt
+                value_code = "fmt.get_field(%r, args, kwargs)"
+            elif field_name.isdigit():
+                idx = int(field_name)
+                value_code = "args[%s]" % field_name
+                highest_index = max(highest_index, idx)
+            elif not field_name:
+                value_code = "args[%i]" % basic_index
+                highest_index = max(highest_index, basic_index)
+                basic_index += 1
+            else:
+                value_code = "kwargs[%r]" % field_name
+
+            if conversion:
+                namespace["fmt"] = fmt
+                value_code = "fmt.convert_field(%s, %r)" % (value_code,
+                                                            conversion)
+
+            if not format_spec:
+                result.append("str(%s)" % value_code)
+            elif '{' in format_spec:
+                namespace["fmt"] = fmt
+                result.append("format(%s, fmt.vformat(%r, args, kwargs))" %
+                              (format_spec, value_code))
+            else:
+                result.append("format(%s, %r)\n" % (value_code, format_spec))
+
+    result = ("def template(args, kwargs):\n"
+              "  assert len(args) > %i, 'Insufficient backreferences'\n"
+              "  return \"\".join([%s])" % (highest_index, ", ".join(result)))
+
+    exec(result, namespace)
+    fn = namespace["template"]
+    fn.interpolate = lambda context: fn(context.backreferences,
+                                        context.message)
+
+    return fn
+
+
 class Context():
     __slots__ = ['pipeline_manager', 'message', 'match', 'match_field',
                  'backreferences']

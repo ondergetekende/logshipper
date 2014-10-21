@@ -18,6 +18,8 @@ import re
 
 import six
 
+import logshipper.context
+
 SKIP_STEP = 1
 DROP_MESSAGE = 2
 TRUTH_VALUES = set(['1', 'true', 'yes', 'on'])
@@ -95,14 +97,15 @@ def prepare_match(parameters):
 
 
 def prepare_replace(parameters):
+    template = logshipper.context.prepare_template(parameters)
+
     def handle_replace(message, context):
         base = message[context.match_field]
         message[context.match_field] = "".join((
             base[:context.match.start()],
-            context.interpolate_template(parameters),
+            template.interpolate(context),
             base[context.match.end():],
         ))
-        print message
 
     handle_replace.phase = PHASE_MANIPULATE
     return handle_replace
@@ -129,11 +132,12 @@ def prepare_set(parameters):
     """
     assert isinstance(parameters, dict)
 
-    parameters = parameters.items()
+    parameters = [(key, logshipper.context.prepare_template(value))
+                  for (key, value) in parameters.items()]
 
     def handle_set(message, context):
         for fieldname, template in parameters:
-            message[fieldname] = context.interpolate_template(template)
+            message[fieldname] = template.interpolate(context)
 
     handle_set.phase = PHASE_MANIPULATE
     return handle_set
@@ -242,15 +246,9 @@ def prepare_statsd(parameters):
     )
 
     type = parameters.get('type', 'counter')
-    name_template = parameters['name']
-    name_is_template = '{' in name_template
+    name_template = logshipper.context.prepare_template(parameters['name'])
+    val_template = logshipper.context.prepare_template(parameters['value'], 1)
     multiplier = float(parameters.get('multiplier', 1.0))
-    val_template = parameters.get('value', "1")
-    if isinstance(val_template, six.string_types) and '{' in val_template:
-        val_is_template = True
-    else:
-        val_is_template = False
-        val_template = float(val_template)
 
     if type == 'counter':
         statsd_client = statsd.Counter(parameters.get('prefix'),
@@ -268,15 +266,8 @@ def prepare_statsd(parameters):
         raise Exception()
 
     def handle_statsd(message, context):
-        if name_is_template:
-            name = context.interpolate_template(name_template)
-        else:
-            name = name_template
-
-        if val_is_template:
-            value = float(context.interpolate_template(val_template))
-        else:
-            value = val_template
+        name = name_template.interpolate(context)
+        value = val_template.interpolate(context)
 
         if delta:
             statsd_client.increment(name, float(value) * multiplier)
@@ -315,10 +306,11 @@ def prepare_stdout(parameters):
     format = (parameters if isinstance(parameters, six.string_types)
               else parameters.get("format", "{message}"))
     format = format.rstrip("\n\r") + "\n"
+    format_template = logshipper.context.prepare_template(format)
     import sys
 
     def handle_stdout(message, context):
-        message = context.interpolate_template(format)
+        message = format_template.interpolate(context)
         sys.stdout.write(message)
 
     return handle_stdout

@@ -121,7 +121,7 @@ class PipelineManager():
 
         self.watch_manager = pyinotify.WatchManager()
         flags = (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE |
-                 pyinotify.IN_DELETE_SELF)
+                 pyinotify.IN_DELETE_SELF | pyinotify.IN_MOVED_TO)
         self.watch_manager.add_watch(path, flags, proc_fun=self._inotified)
         self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
             self.watch_manager)
@@ -152,20 +152,27 @@ class PipelineManager():
                 pipeline.stop()
 
     def _inotified(self, event):
-        name = os.path.basename(event.path).rsplit('.', 1)[0]
-        if event.mask == pyinotify.IN_CLOSE_WRITE:
-            self.load_pipeline(event.path)
+        if not event.pathname.endswith('.yml'):
+            return
+
+        name = os.path.basename(event.pathname)[:-4]
+
+        if event.mask & (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO):
+            self.load_pipeline(event.pathname)
         elif event.mask in (pyinotify.IN_DELETE, pyinotify.IN_DELETE_SELF):
             pipeline = self.pipelines.pop(name, None)
             if pipeline:
+                LOG.info("Stopping pipeline %s", name)
                 pipeline.stop()
 
     def load_pipeline(self, path):
         name = os.path.basename(path).rsplit('.', 1)[0]
         try:
             pipeline = self.pipelines[name]
+            LOG.info("Reloading pipeline %s", name)
         except KeyError:
             pipeline = self.pipelines[name] = Pipeline(self)
+            LOG.info("Loading pipeline %s", name)
 
         with open(path, 'r') as yaml_file:
             pipeline.update(yaml_file.read())

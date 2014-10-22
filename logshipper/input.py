@@ -19,6 +19,8 @@ import re
 import sys
 
 import eventlet
+from eventlet.green import subprocess
+from eventlet.green import time
 import eventlet.tpool
 
 
@@ -46,6 +48,67 @@ class BaseInput():
 
     def _run(self):
         raise NotImplementedError
+
+
+class Command(BaseInput):
+    """Processes the output from a output, line by line
+
+    Start a process, and generated the lines from both stderr and stdout as
+    a message. For one-shot processes (such as uptime), ``interval`` means
+    the number of seconds between two calls. For longer running processes,
+    such as ``iostat -w1``, interval functions like a respawn limiter.
+
+    Example pipeline:
+
+    .. code:: yaml
+
+        inputs:
+        - command:
+            commandline: uptime
+            interval: 60
+        steps:
+        - match: >
+            (?x)
+            load\saverage:\s
+            (?P<uptime_1m>\d+\.\d+),\s
+            (?P<uptime_5m>\d+\.\d+),\s
+            (?P<uptime_15m>\d+\.\d+)
+        - match: (?P<users>\d+) users
+        - unset: message
+        - debug:
+    """
+
+    def __init__(self, commandline, interval=60, env={}):
+        self.commandline = commandline
+        self.interval = int(interval)
+        self.env = {"LC_ALL": "C"}
+        self.env.update(env)
+
+    def _run(self):
+        while self.should_run:
+            start_time = time.time()
+            p = subprocess.Popen(self.commandline, stdin=None,
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 env=self.env)
+
+            def process_pipe(pipe):
+                while not pipe.closed:
+                    line = pipe.readline()
+                    if not line:
+                        break
+                    self.handler({"message": line.rstrip()})
+
+            stdout_thread = eventlet.spawn(process_pipe, p.stdout)
+            stderr_thread = eventlet.spawn(process_pipe, p.stderr)
+
+            p.wait()
+
+            stdout_thread.wait()
+            stderr_thread.wait()
+
+            took = time.time() - start_time
+            time.sleep(self.interval - took)
 
 
 class Stdin(BaseInput):
@@ -123,7 +186,8 @@ class Syslog(BaseInput):
     rfc5424_matcher = re.compile(r"""
         <(?P<prival>\d{1,3})>1
         \s
-        (?P<timestamp>-|\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d))
+        (?P<timestamp>-|\d\d\d\d-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?
+            (Z|[+-]\d\d:\d\d))
         \s
         (?P<hostname>-|\S{1,255})
         \s

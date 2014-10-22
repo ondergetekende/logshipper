@@ -1,0 +1,15 @@
+inputs: 
+- command:
+    commandline: uptime
+    interval: 60
+steps:
+- match: >
+    (?x)
+    load\saverage:\s 
+    (?P<uptime_1m>\d+\.\d+),\s
+    (?P<uptime_5m>\d+\.\d+),\s
+    (?P<uptime_15m>\d+\.\d+)
+- match: (?P<users>\d+) users
+- unset: message
+- debug:
+ 

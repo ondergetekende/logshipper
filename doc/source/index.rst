@@ -19,6 +19,11 @@ syslog
 
 .. autoclass:: logshipper.input.Syslog
 
+command
+-------
+
+.. autoclass:: logshipper.input.Command
+
 stdin
 -----
 

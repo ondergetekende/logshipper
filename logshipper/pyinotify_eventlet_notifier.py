@@ -105,7 +105,7 @@ class Notifier:
             s_size = 16
             # Retrieve wd, mask, cookie and fname_len
             wd, mask, cookie, fname_len = struct.unpack('iIII',
-                                                        r[rsum:rsum+s_size])
+                                                        r[rsum:rsum + s_size])
             # Retrieve name
             fname, = struct.unpack('%ds' % fname_len,
                                    r[rsum + s_size:rsum + s_size + fname_len])

@@ -261,7 +261,7 @@ class Syslog(BaseInput):
                 ts = datetime.datetime.strptime(timestamp[0],
                                                 "%Y-%m-%dT%H:%M:%S")
                 if len(timestamp) == 2:
-                    seconds = float("."+timestamp[1])
+                    seconds = float("." + timestamp[1])
                     ts = ts + datetime.timedelta(seconds=seconds)
                 ts = ts.replace(tzinfo=Syslog.rfc5424_tz(tz_offset))
                 message['timestamp'] = ts

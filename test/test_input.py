@@ -50,7 +50,7 @@ class Syslog(unittest.TestCase):
             "ID47 [exampleSDID@32473 iut=\"3\" eventSource=\"Application\" "
             "eventID=\"1011\"] Actual event text")
 
-        self.assertEqual(msg[0]['message'],  'Actual event text')
+        self.assertEqual(msg[0]['message'], 'Actual event text')
 
         self.assertEqual(msg[0]['procid'], '-')
         self.assertEqual(msg[0]['severity'], 'notice')

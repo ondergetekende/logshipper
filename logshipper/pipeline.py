@@ -95,11 +95,11 @@ class Pipeline():
         filter_factory = endpoint.load()
         return filter_factory(parameters)
 
-    def process(self, message):
+    def process_in_eventlet(self, message):
         message.setdefault('timestamp', datetime.datetime.now())
-        PIPELINE_POOL.spawn_n(self.process_with_result, message)
+        PIPELINE_POOL.spawn_n(self.process, message)
 
-    def process_with_result(self, message):
+    def process(self, message):
         context = logshipper.context.Context(message, self.manager)
         for step in self.steps:
             context.next_step()
@@ -177,7 +177,10 @@ class PipelineManager():
         with open(path, 'r') as yaml_file:
             pipeline.update(yaml_file.read())
 
-    def process_message(self, message, pipeline_name):
+    def process_in_eventlet(self, message, pipeline_name):
+        PIPELINE_POOL.spawn_n(self.process, message, pipeline_name)
+
+    def process(self, message, pipeline_name):
         if self.recursion_depth > 10:
             raise Exception("Recursion to deep")
 

@@ -361,17 +361,13 @@ def prepare_jump(parameters):
 
     Sends the message to a different pipeline. The remainder of this pipeline
     is not executed. Note that there is a hardcoded limit of 10 jumps per
-    message (includes jumps made by ``call``)
+    message (includes jumps made by ``call`` and ``jump``)
 
     Example:
 
     .. code:: yaml
 
         jump: my_pipeline
-
-        # equivalent to
-        call: my_pipeline
-        drop:
     """
     pipeline_name = (parameters if isinstance(parameters, six.string_types)
                      else parameters.get("pipeline"))
@@ -379,18 +375,44 @@ def prepare_jump(parameters):
         raise Exception("parameter pipeline required")
 
     def handle_jump(message, context):
-        context.pipeline_manager.process_message(message, pipeline_name)
+        context.pipeline_manager.process(message, pipeline_name)
         return DROP_MESSAGE
 
     return handle_jump
 
 
+def prepare_fork(parameters):
+    """Dispatches messages to a different pipeline.
+
+    Sends a copy of the message to a different pipeline. The remainder of this
+    pipeline will also be executed. Note that there is a hardcoded limit of 10
+    pipeline changes per message (includes jumps made by ``jump`` and ``call``)
+
+    Example:
+
+    .. code:: yaml
+
+        fork: my_pipeline
+    """
+    pipeline_name = (parameters if isinstance(parameters, six.string_types)
+                     else parameters.get("pipeline"))
+    if not pipeline_name:
+        raise Exception("parameter pipeline required")
+
+    def handle_fork(message, context):
+        context.pipeline_manager.process_in_eventlet(dict(message),
+                                                     pipeline_name)
+
+    return handle_fork
+
+
 def prepare_call(parameters):
     """Dispatches messages to a different pipeline.
 
-    Sends the message to a different pipeline. The remainder of this pipeline
-    will also be executed. Note that there is a hardcoded limit of 10 pipe
-    changes per message (includes jumps made by ``jump``)
+    Sends the message through another pipeline. Any changes to the
+    message will be visible in the remainder of this pipeline. Note that there
+    is a hardcoded limit of 10 pipeline changes per message (includes jumps
+    made by ``jump`` and ``fork``)
 
     Example:
 
@@ -404,7 +426,6 @@ def prepare_call(parameters):
         raise Exception("parameter pipeline required")
 
     def handle_call(message, context):
-        context.pipeline_manager.process_message(message.clone(),
-                                                 pipeline_name)
+        context.pipeline_manager.process(message, pipeline_name)
 
     return handle_call

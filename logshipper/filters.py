@@ -429,3 +429,14 @@ def prepare_call(parameters):
         context.pipeline_manager.process(message, pipeline_name)
 
     return handle_call
+
+
+def prepare_python(parameters):
+    def handle_python(message, context):
+        namespace = {
+            'message': message,
+            'context': 'context',
+        }
+        exec(parameters, namespace)
+
+    return handle_python

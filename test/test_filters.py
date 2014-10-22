@@ -83,3 +83,11 @@ class Tests(unittest.TestCase):
         result = handler(message, context)
         self.assertEqual(result, None)
         self.assertEqual(message, {"baz": "yeah"})
+
+    def test_python(self):
+        handler = logshipper.filters.prepare_python("message['a'] = 4")
+        message = {}
+        context = logshipper.context.Context(message, None)
+        result = handler(message, context)
+        self.assertEqual(result, None)
+        self.assertEqual(message, {"a": 4})

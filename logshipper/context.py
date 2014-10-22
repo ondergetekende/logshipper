@@ -22,7 +22,9 @@ import six
 def prepare_template(template):
 
     if not isinstance(template, six.string_types) or "{" not in template:
-        return lambda args, kwargs: template
+        result = lambda args, kwargs: template
+        result.interpolate = lambda context: template
+        return result
 
     fmt = string.Formatter()
 

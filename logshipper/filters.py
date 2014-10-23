@@ -432,11 +432,13 @@ def prepare_call(parameters):
 
 
 def prepare_python(parameters):
+    code = compile(parameters, "pipeline", "exec")
+
     def handle_python(message, context):
         namespace = {
             'message': message,
             'context': 'context',
         }
-        exec(parameters, namespace)
+        exec(code, namespace)
 
     return handle_python

@@ -42,6 +42,30 @@ INPUT_FACTORIES = dict(
 PIPELINE_POOL = eventlet.greenpool.GreenPool()
 
 
+def prepare_input(klass, params, processfn):
+    endpoint = INPUT_FACTORIES[klass]
+    filter_factory = endpoint.load()
+    input_ = filter_factory(**(params or {}))
+    input_.set_handler(processfn)
+    return input_
+
+
+def prepare_step(step_config):
+    sequence = [prepare_action(stepname, parameters)
+                for (stepname, parameters) in step_config.items()]
+
+    sequence.sort(key=lambda action: getattr(action, "phase",
+                                             filters.PHASE_FORWARD))
+
+    return sequence
+
+
+def prepare_action(name, parameters):
+    endpoint = FILTER_FACTORIES[name]
+    filter_factory = endpoint.load()
+    return filter_factory(parameters)
+
+
 class Pipeline():
     def __init__(self, manager):
         self.manager = manager
@@ -52,15 +76,14 @@ class Pipeline():
         pipeline = yaml.load(pipeline_yaml)
         self.stop()
 
-        self.steps = [self.prepare_step(step)
-                      for step in pipeline.get('steps', [])]
+        self.steps = [prepare_step(step) for step in pipeline.get('steps', [])]
 
         input_config = pipeline.get('inputs', [])
         if isinstance(input_config, dict):
             input_config = input_config.items()
         else:
             input_config = sum((c.items() for c in input_config), [])
-        self.inputs = [self.prepare_input(klass, params)
+        self.inputs = [prepare_input(klass, params, self.process)
                        for klass, params in input_config]
         self.start()
 
@@ -71,29 +94,6 @@ class Pipeline():
     def stop(self):
         for input_ in self.inputs:
             input_.stop()
-
-    def prepare_input(self, klass, params):
-        endpoint = INPUT_FACTORIES[klass]
-        filter_factory = endpoint.load()
-        input_ = filter_factory(**(params or {}))
-        input_.set_handler(self.process)
-        return input_
-
-    def prepare_step(self, step_config):
-        sequence = []
-        sequence.extend(
-            self.prepare_action(stepname, parameters)
-            for (stepname, parameters) in step_config.items())
-
-        sequence.sort(key=lambda action: getattr(action, "phase",
-                                                 filters.PHASE_FORWARD))
-
-        return sequence
-
-    def prepare_action(self, name, parameters):
-        endpoint = FILTER_FACTORIES[name]
-        filter_factory = endpoint.load()
-        return filter_factory(parameters)
 
     def process_in_eventlet(self, message):
         message.setdefault('timestamp', datetime.datetime.now())

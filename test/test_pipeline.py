@@ -35,7 +35,7 @@ def prepare_handler1(params):
     def h_counter(message, context):
         c.append(dict(message))
         message['handler1'] = True
-        message['history'] = c
+        message['history'] = list(c)
 
     h_counter.phase = 1
     return h_counter
@@ -94,7 +94,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(pipeline.inputs), 1)
         self.assertEqual(len(pipeline.steps), 2)
 
-        eventlet.sleep(.01)
+        eventlet.sleep(.03)
 
         m = pipeline.process({})
-        self.assertEqual(m['history'], [{'generated': 1}, {}])
+        self.assertEqual(len(m['history']), 2)
+        self.assertIn('generated', m['history'][0])
+        self.assertNotIn('generated', m['history'][1])

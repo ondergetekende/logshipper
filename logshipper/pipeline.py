@@ -87,7 +87,7 @@ class Pipeline():
             input_config = input_config.items()
         else:
             input_config = sum((c.items() for c in input_config), [])
-        self.inputs = [prepare_input(klass, params, self.process)
+        self.inputs = [prepare_input(klass, params, self.process_in_eventlet)
                        for klass, params in input_config]
         self.start()
 

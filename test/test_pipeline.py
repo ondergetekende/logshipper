@@ -16,22 +16,85 @@
 
 import unittest
 
-import logshipper.pipeline
+import eventlet
+
 import logshipper.input
+import logshipper.pipeline
+
+
+class TestInput(logshipper.input.BaseInput):
+    testmessage = {"generated": 1}
+
+    def _run(self):
+        self.handler(dict(self.testmessage))
+
+
+def prepare_handler1(params):
+    c = []
+
+    def h_counter(message, context):
+        c.append(dict(message))
+        message['handler1'] = True
+        message['history'] = c
+
+    h_counter.phase = 1
+    return h_counter
+
+
+def prepare_handler2(params):
+    l = lambda message, context: message.update({'handler2': True})
+    l.phase = 3
+    return l
 
 
 class Tests(unittest.TestCase):
 
     def test_prepare_input(self):
-        handler = logshipper.pipeline.prepare_input('stdin', {}, None)
+        result = []
 
-        self.assertIsInstance(handler, logshipper.input.Stdin)
+        def handler(message):
+            self.assertEqual(message, TestInput.testmessage)
+            result.append(1)
+
+        input_ = logshipper.pipeline.prepare_input(__name__ + ":TestInput", {},
+                                                   handler)
+        self.assertIsInstance(input_, TestInput)
+
+        self.assertEqual(result, [])
+        input_.start()
+        eventlet.sleep(.01)
+        self.assertEqual(result, [1])
+        input_.stop()
 
     def test_prepare_filter(self):
-        handler = logshipper.pipeline.prepare_step({'set': {'a': 'a'}})
+        handler = logshipper.pipeline.prepare_step({
+            __name__ + ":prepare_handler1": {},
+            __name__ + ":prepare_handler2": {},
+        })
 
-        self.assertNotEquals(handler, None)
-        self.assertEqual(len(handler), 1)
+        self.assertNotEqual(handler, None)
+        self.assertEqual(len(handler), 2)
         message = {}
         handler[0](message, None)
-        self.assertEqual(message['a'], 'a')
+        self.assertTrue(message['handler1'])
+        handler[1](message, None)
+        self.assertTrue(message['handler2'])
+
+    def test_pipeline(self):
+        pipeline = logshipper.pipeline.Pipeline(None)
+
+        pipeline.update(
+            "inputs:\n"
+            "  'test_pipeline:TestInput': {}\n"
+            "steps:\n"
+            "- 'test_pipeline:prepare_handler1': None\n"
+            "- 'test_pipeline:prepare_handler2': None\n"
+        )
+
+        self.assertEqual(len(pipeline.inputs), 1)
+        self.assertEqual(len(pipeline.steps), 2)
+
+        eventlet.sleep(.01)
+
+        m = pipeline.process({})
+        self.assertEqual(m['history'], [{'generated': 1}, {}])

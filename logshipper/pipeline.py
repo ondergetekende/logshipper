@@ -43,8 +43,10 @@ PIPELINE_POOL = eventlet.greenpool.GreenPool()
 
 
 def prepare_input(klass, params, processfn):
-    endpoint = INPUT_FACTORIES[klass]
-    filter_factory = endpoint.load()
+    entrypoint = INPUT_FACTORIES.get(klass)
+    if not entrypoint:
+        entrypoint = pkg_resources.EntryPoint.parse('X=' + klass)
+    filter_factory = entrypoint.load(require=False)
     input_ = filter_factory(**(params or {}))
     input_.set_handler(processfn)
     return input_
@@ -61,8 +63,10 @@ def prepare_step(step_config):
 
 
 def prepare_action(name, parameters):
-    endpoint = FILTER_FACTORIES[name]
-    filter_factory = endpoint.load()
+    entrypoint = FILTER_FACTORIES.get(name)
+    if not entrypoint:
+        entrypoint = pkg_resources.EntryPoint.parse('X=' + name)
+    filter_factory = entrypoint.load(require=False)
     return filter_factory(parameters)
 
 

@@ -15,6 +15,7 @@
 
 
 import re
+import time
 
 import six
 
@@ -94,6 +95,41 @@ def prepare_match(parameters):
 
     handle_match.phase = PHASE_MATCH
     return handle_match
+
+
+def prepare_edge(parameters):
+    """Watches an expresion for changes
+
+    This filter matches when the trigger changes.
+
+    ```trigger```
+        The field to match on. Typically contains backreferences or variable
+        substitutions.
+    ```backlog```
+        The number of historic values to match against. The backlog eviction
+        algorithm is LRU.
+    """
+
+    if isinstance(parameters, six.string_types):
+        parameters = {"trigger": parameters}
+
+    trigger = logshipper.context.prepare_template(parameters['trigger'])
+    queue = dict()
+    backlog = int(parameters.get('backlog', 1))
+
+    def handle_edge(message, context):
+        value = trigger.interpolate(context)
+        if value in queue:
+            queue[value] = time.time()
+            return SKIP_STEP
+
+        if len(queue) >= backlog:
+            items = sorted((t, k) for (k, t) in queue.items())
+            queue.pop(items[0][1])
+
+        queue[value] = time.time()
+
+    return handle_edge
 
 
 def prepare_replace(parameters):

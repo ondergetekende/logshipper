@@ -56,6 +56,36 @@ class Tests(unittest.TestCase):
         self.assertEqual(context.backreferences, [])
         self.assertEqual(message['boo'], 'bar')
 
+    def test_edge1(self):
+        h = logshipper.filters.prepare_edge("{foo}")
+        handler = lambda m: h(m, logshipper.context.Context(m, None))
+
+        result = handler({"foo": "1"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "1"})
+        self.assertEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "2"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "1"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+
+    def test_edge2(self):
+        h = logshipper.filters.prepare_edge({"trigger": "{foo}",
+                                             "backlog": 2})
+        handler = lambda m: h(m, logshipper.context.Context(m, None))
+        result = handler({"foo": "1"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "2"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "1"})
+        self.assertEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "2"})
+        self.assertEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "3"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+        result = handler({"foo": "1"})
+        self.assertNotEqual(result, logshipper.filters.SKIP_STEP)
+
     def test_replace(self):
         match_handler = logshipper.filters.prepare_match("t(.st)")
         replace_handler = logshipper.filters.prepare_replace("T{1}")

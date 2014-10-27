@@ -112,8 +112,6 @@ def prepare_template(template):
     result = ("def template(args, kwargs):\n"
               "  return %s" % code)
 
-    print code
-
     exec(result, namespace)
     fn = namespace["template"]
     fn.interpolate = lambda context: fn(context.backreferences,

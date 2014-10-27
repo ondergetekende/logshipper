@@ -19,25 +19,55 @@ import string
 import six
 
 
-def prepare_template(template):
+def _template_code(template):
+    if (template in (True, False, None) or
+            isinstance(template, six.integer_types) or
+            isinstance(template, float)):
+        return {}, repr(template)
 
-    if not isinstance(template, six.string_types) or "{" not in template:
-        result = lambda args, kwargs: template
-        result.interpolate = lambda context: template
-        return result
+    if isinstance(template, six.string_types):
+        return _template_code_string(template)
 
+    if isinstance(template, list):
+        result = ["["]
+        namespace = {}
+
+        for item in template:
+            ns, code = _template_code(item)
+            result.append("%s," % code)
+            namespace.update(ns)
+
+        result.append("]")
+        return namespace, "".join(result)
+
+    if isinstance(template, dict):
+        result = ["{"]
+        namespace = {}
+
+        for key, value in template.items():
+            ns, value_code = _template_code(value)
+            result.append("%r:%s," % (key, value_code))
+            namespace.update(ns)
+
+        result.append("}")
+        return namespace, "".join(result)
+
+    raise TypeError("Unsupported type for templating")
+
+
+def _template_code_string(template):
     fmt = string.Formatter()
 
     namespace = {}
     result = []
+    basic_index = 1
+    highest_index = -1
     for literal, field_name, format_spec, conversion in fmt.parse(template):
 
         # output the literal text
         if literal:
             result.append("%r" % literal)
 
-        basic_index = 1
-        highest_index = -1
         # if there's a field, output it
         if field_name is not None:
             if "[" in field_name or "." in field_name:
@@ -68,9 +98,21 @@ def prepare_template(template):
             else:
                 result.append("format(%s, %r)\n" % (value_code, format_spec))
 
+    if not result:
+        return namespace, "\"\""
+    if len(result) == 1:
+        return namespace, result[0]
+
+    return namespace, "\"\".join([%s])" % (", ".join(result))
+
+
+def prepare_template(template):
+    namespace, code = _template_code(template)
+
     result = ("def template(args, kwargs):\n"
-              "  assert len(args) > %i, 'Insufficient backreferences'\n"
-              "  return \"\".join([%s])" % (highest_index, ", ".join(result)))
+              "  return %s" % code)
+
+    print code
 
     exec(result, namespace)
     fn = namespace["template"]

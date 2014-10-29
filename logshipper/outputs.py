@@ -161,7 +161,7 @@ def prepare_stdout(parameters):
 
     .. code:: yaml
 
-        stdout: "{date}: {message}
+        stdout: "{date}: {message}"
     """
     format = (parameters if isinstance(parameters, six.string_types)
               else parameters.get("format", "{message}"))

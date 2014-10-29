@@ -29,7 +29,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Processes log messages and sends them elsewhere")
 
-    parser.add_argument('--pipeline-path',
+    parser.add_argument('pipeline', nargs='+',
                         default="/etc/logshipper/",
                         help='Where to find pipelines (*.yml files)')
 
@@ -48,7 +48,7 @@ def main():
     logging.basicConfig(level=log_level)
     LOG = logging.getLogger(__name__)
 
-    pipeline_manager = logshipper.pipeline.PipelineManager(ARGS.pipeline_path)
+    pipeline_manager = logshipper.pipeline.PipelineManager(ARGS.pipeline)
 
     pipeline_manager.start()
 

@@ -16,6 +16,7 @@
 
 import datetime
 import glob
+import fnmatch
 import logging
 import os
 
@@ -118,15 +119,26 @@ class Pipeline():
 
 
 class PipelineManager():
-    def __init__(self, path):
-        self.glob = os.path.join(path, "*.yml")
+    def __init__(self, globs):
+        self.globs = globs
         self.pipelines = {}
         self.recursion_depth = 0
 
         self.watch_manager = pyinotify.WatchManager()
         flags = (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE |
                  pyinotify.IN_DELETE_SELF | pyinotify.IN_MOVED_TO)
-        self.watch_manager.add_watch(path, flags, proc_fun=self._inotified)
+
+        for fileglob in self.globs:
+            head, tail = os.path.split(fileglob)
+            if ('?' in tail) or ('*' in tail):
+                print head
+                self.watch_manager.add_watch(head, flags,
+                                             proc_fun=self._inotified)
+            else:
+                print fileglob
+                self.watch_manager.add_watch(fileglob, flags,
+                                             proc_fun=self._inotified)
+
         self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
             self.watch_manager)
         self.thread = None
@@ -144,8 +156,9 @@ class PipelineManager():
 
     def _run(self):
         try:
-            for path in glob.iglob(self.glob):
-                self.load_pipeline(path)
+            for fileglob in self.globs:
+                for path in glob.iglob(fileglob):
+                    self.load_pipeline(path)
 
             while self.should_run:
                 self.notifier.loop(lambda _: not self.should_run)
@@ -156,10 +169,11 @@ class PipelineManager():
                 pipeline.stop()
 
     def _inotified(self, event):
-        if not event.pathname.endswith('.yml'):
+        if not any(fnmatch.fnmatch(event.pathname, pattern)
+                   for pattern in self.globs):
             return
 
-        name = os.path.basename(event.pathname)[:-4]
+        name = os.path.splitext(os.path.basename(event.pathname))[0]
 
         if event.mask & (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_MOVED_TO):
             self.load_pipeline(event.pathname)

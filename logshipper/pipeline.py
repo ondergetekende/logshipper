@@ -15,8 +15,8 @@
 
 
 import datetime
-import glob
 import fnmatch
+import glob
 import logging
 import os
 
@@ -131,11 +131,9 @@ class PipelineManager():
         for fileglob in self.globs:
             head, tail = os.path.split(fileglob)
             if ('?' in tail) or ('*' in tail):
-                print head
                 self.watch_manager.add_watch(head, flags,
                                              proc_fun=self._inotified)
             else:
-                print fileglob
                 self.watch_manager.add_watch(fileglob, flags,
                                              proc_fun=self._inotified)
 

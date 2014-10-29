@@ -27,7 +27,7 @@ import eventlet.tpool
 LOG = logging.getLogger(__name__)
 
 
-class BaseInput():
+class BaseInput(object):
     handler = None
     should_run = False
     thread = None
@@ -87,10 +87,13 @@ class Command(BaseInput):
     def _run(self):
         while self.should_run:
             start_time = time.time()
-            p = subprocess.Popen(self.commandline, stdin=None,
+            p = subprocess.Popen(self.commandline, close_fds=True,
+                                 env=self.env, shell=True,
+                                 stdin=subprocess.PIPE,
                                  stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE,
-                                 env=self.env)
+                                 stderr=subprocess.PIPE)
+
+            p.stdin.close()
 
             def process_pipe(pipe):
                 while not pipe.closed:

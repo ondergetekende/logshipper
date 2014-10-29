@@ -82,7 +82,7 @@ def _template_code_string(template):
                 highest_index = max(highest_index, basic_index)
                 basic_index += 1
             else:
-                value_code = "kwargs[%r]" % field_name
+                value_code = "kwargs.get(%r, '')" % field_name
 
             if conversion:
                 namespace["fmt"] = fmt

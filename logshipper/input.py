@@ -22,6 +22,7 @@ import eventlet
 from eventlet.green import subprocess
 from eventlet.green import time
 import eventlet.tpool
+import six
 
 
 LOG = logging.getLogger(__name__)
@@ -78,34 +79,68 @@ class Command(BaseInput):
         - debug:
     """
 
-    def __init__(self, commandline, interval=60, env={}):
+    def __init__(self, commandline, interval=60, env={}, separator='\n'):
         self.commandline = commandline
         self.interval = int(interval)
         self.env = {"LC_ALL": "C"}
         self.env.update(env)
+        self.separator = separator
+        self.process = None
+
+    def stop(self):
+        if self.process:
+            self.process.terminate()
+        super(Command, self).stop()
 
     def _run(self):
         while self.should_run:
             start_time = time.time()
-            p = subprocess.Popen(self.commandline, close_fds=True,
-                                 env=self.env, shell=True,
-                                 stdin=subprocess.PIPE,
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
+            if isinstance(self.commandline, six.string_types):
+                p = subprocess.Popen(self.commandline, close_fds=True,
+                                     env=self.env, shell=True,
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+            else:
+                p = subprocess.Popen(self.commandline, close_fds=True,
+                                     env=self.env,
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
 
             p.stdin.close()
+            self.process = p
 
-            def process_pipe(pipe):
-                while not pipe.closed:
-                    line = pipe.readline()
-                    if not line:
-                        break
-                    self.handler({"message": line.rstrip()})
+            if self.separator == '\n':
+                def process_pipe(pipe):
+                    while not pipe.closed:
+                        line = pipe.readline()
+                        if not line:
+                            break
+                        if six.PY2:
+                            line = line.decode('utf8')
+                        print repr(line)
+                        self.handler({"message": line.rstrip('\n')})
+            else:
+                def process_pipe(pipe):
+                    buf = ""
+                    while not pipe.closed:
+                        chunk = pipe.read(1)
+
+                        if not chunk:
+                            break
+                        buf += chunk
+                        messages = buf.split(self.separator)
+                        buf = messages[-1]
+                        messages = messages[:-1]
+                        for message in messages:
+                            self.handler({"message": message})
 
             stdout_thread = eventlet.spawn(process_pipe, p.stdout)
             stderr_thread = eventlet.spawn(process_pipe, p.stderr)
 
             p.wait()
+            self.process = None
 
             stdout_thread.wait()
             stderr_thread.wait()

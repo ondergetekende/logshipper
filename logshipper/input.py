@@ -117,9 +117,8 @@ class Command(BaseInput):
                         line = pipe.readline()
                         if not line:
                             break
-                        if six.PY2:
-                            line = line.decode('utf8')
-                        print repr(line)
+
+                        line = line.decode('utf8')
                         self.handler({"message": line.rstrip('\n')})
             else:
                 def process_pipe(pipe):

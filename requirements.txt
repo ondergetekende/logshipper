@@ -3,4 +3,5 @@ pika
 pyinotify
 python-statsd
 pyyaml
+requests
 six

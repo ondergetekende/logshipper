@@ -15,6 +15,7 @@
 
 
 import unittest
+
 from eventlet.green import time
 
 import logshipper.input
@@ -58,14 +59,16 @@ class Command(unittest.TestCase):
         def handler(m):
             msg.append(m)
 
-        cmd = logshipper.input.Command(["echo", u"\u2713"])  # unicode checkmark
+        test_string = u"\u2713"  # unicode checkmark
+
+        cmd = logshipper.input.Command(["echo", test_string])
         cmd.set_handler(handler)
 
         cmd.start()
         time.sleep(0.1)
         cmd.stop()
 
-        self.assertEqual(msg[0]['message'], u"\u2713")
+        self.assertEqual(msg[0]['message'], test_string)
 
     def test_unicode2(self):
         msg = []

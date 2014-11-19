@@ -101,7 +101,7 @@ class Pipeline():
             input_.stop()
 
     def process_in_eventlet(self, message):
-        message.setdefault('timestamp', datetime.datetime.now())
+        message.setdefault('timestamp', datetime.datetime.utcnow())
         PIPELINE_POOL.spawn_n(self.process, message)
 
     def process(self, message):

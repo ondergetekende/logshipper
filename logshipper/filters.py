@@ -46,6 +46,9 @@ def prepare_match(parameters):
     registered as backreferences, which can be used throughout the rest of the
     step.
 
+    Everywhere where single regexes can be used, a list of regexes can be used
+    instead. The first match will be used in that case.
+
     Example:
 
 
@@ -70,31 +73,67 @@ def prepare_match(parameters):
         set:
             part: "{1} {time}"
     """
-    if isinstance(parameters, six.string_types):
+    if not isinstance(parameters, dict):
         parameters = {"message": parameters}
 
-    regexes = [(a, re.compile(b)) for (a, b) in parameters.items()]
+    regexes = [
+        (a, [re.compile(b)]
+            if isinstance(b, six.string_types)
+            else [re.compile(c) for c in b])
+        for (a, b) in parameters.items()]
 
     def handle_match(message, context):
-        matches = []
-        for field_name, regex in regexes:
+        matches = {}
+        last_match = None
+        last_match_key = None
+        for field_name, regex_list in regexes:
             field_data = message.get(field_name)
-            m = regex.search(field_data)
-            if not m:
+            for regex in regex_list:
+                m = regex.search(field_data)
+                if m:
+                    break
+            else:
                 return SKIP_STEP
-            matches.append(m)
 
-        for m in matches:
+            matches[field_name] = last_match = m
+            last_match_key = field_name
+
+        for m in matches.values():
             message.update(m.groupdict())
 
+        context.matches = matches
+
         if len(matches) == 1:
-            context.match = matches[0]
-            context.backreferences = [matches[0].group(0)]
-            context.backreferences.extend(matches[0].groups())
-            context.match_field = regexes[0][0]
+
+            context.match_field = last_match_key
+            context.match = last_match
+            context.backreferences = [context.match.group(0)]
+            context.backreferences.extend(context.match.groups())
 
     handle_match.phase = PHASE_MATCH
     return handle_match
+
+
+def prepare_extract(parameters):
+    """Matches regexes against message fields and extracts any matches
+
+    Equivalent to a match followed by an empty replace. This is especially
+    useful when named groups are used.
+    """
+
+    matcher = prepare_match(parameters)
+
+    def handle_extract(message, context):
+        result = matcher(message, context)
+        if result != SKIP_STEP:
+            for field_name, match in context.matches.items():
+                base = message[field_name]
+                message[field_name] = "".join((base[:match.start()],
+                                               base[match.end():]))
+        return result
+
+    handle_extract.phase = PHASE_MATCH
+    return handle_extract
 
 
 def prepare_edge(parameters):
@@ -133,15 +172,23 @@ def prepare_edge(parameters):
 
 
 def prepare_replace(parameters):
-    template = logshipper.context.prepare_template(parameters)
+    """Replaces the matched strings with some text.
+
+    Replace takes one parameter, the replacement text. The replacement text
+    can be templated, in which case the textual backreferences are available
+    as numbers in curly braces, e.g. ```{1}```). Note that backreferences are
+    only available when the match acted on a single field.
+    """
+
+    template = logshipper.context.prepare_template(parameters or "")
 
     def handle_replace(message, context):
         base = message[context.match_field]
-        message[context.match_field] = "".join((
-            base[:context.match.start()],
-            template.interpolate(context),
-            base[context.match.end():],
-        ))
+        for field_name, match in context.matches.items():
+            base = message[field_name]
+            message[field_name] = "".join((base[:match.start()],
+                                           template.interpolate(context),
+                                           base[match.end():]))
 
     handle_replace.phase = PHASE_MANIPULATE
     return handle_replace

@@ -122,13 +122,14 @@ def prepare_template(template):
 
 class Context():
     __slots__ = ['pipeline_manager', 'message', 'match', 'match_field',
-                 'backreferences']
+                 'backreferences', 'matches']
 
     def __init__(self, message, pipeline_manager):
         self.pipeline_manager = pipeline_manager
         self.message = message
         self.match = None
         self.match_field = None
+        self.matches = None
         self.backreferences = []
 
     def interpolate_template(self, template):

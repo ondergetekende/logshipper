@@ -56,6 +56,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(context.backreferences, [])
         self.assertEqual(message['boo'], 'bar')
 
+    def test_extract(self):
+        handler = logshipper.filters.prepare_extract({"message": "(t.st)",
+                                                      "foo": "(?P<boo>b.r)"})
+        message = {"message": "This is a test.", "foo": "barbar"}
+        context = logshipper.context.Context(message, None)
+        result = handler(message, context)
+
+        self.assertEqual(result, None)
+        self.assertEqual(context.match_field, None)
+        self.assertEqual(context.backreferences, [])
+        self.assertEqual(message['boo'], 'bar')
+        self.assertEqual(message['foo'], 'bar')
+        self.assertEqual(message['message'], 'This is a .')
+
     def test_edge1(self):
         h = logshipper.filters.prepare_edge("{foo}")
         handler = lambda m: h(m, logshipper.context.Context(m, None))

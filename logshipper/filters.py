@@ -190,7 +190,6 @@ def prepare_replace(parameters):
                                            template.interpolate(context),
                                            base[match.end():]))
 
-    handle_replace.phase = PHASE_MANIPULATE
     return handle_replace
 
 
@@ -222,7 +221,6 @@ def prepare_set(parameters):
         for fieldname, template in parameters:
             message[fieldname] = template.interpolate(context)
 
-    handle_set.phase = PHASE_MANIPULATE
     return handle_set
 
 
@@ -261,7 +259,9 @@ def prepare_drop(parameters):
         match: ^DEBUG
         drop:
     """
-    return lambda message, parameters: DROP_MESSAGE
+    handler = lambda message, parameters: DROP_MESSAGE
+    handler.phase = PHASE_DROP
+    return handler
 
 
 def prepare_python(parameters):
@@ -289,5 +289,7 @@ def prepare_python(parameters):
             'context': 'context',
         }
         exec(code, namespace)
+
+    handle_python.phase = PHASE_MANIPULATE + 5
 
     return handle_python

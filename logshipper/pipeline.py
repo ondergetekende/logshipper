@@ -35,6 +35,10 @@ FILTER_FACTORIES = dict(
     (entrypoint.name, entrypoint) for entrypoint in
     pkg_resources.iter_entry_points("logshipper.filters")
 )
+OUTPUT_FACTORIES = dict(
+    (entrypoint.name, entrypoint) for entrypoint in
+    pkg_resources.iter_entry_points("logshipper.filters")
+)
 INPUT_FACTORIES = dict(
     (entrypoint.name, entrypoint) for entrypoint in
     pkg_resources.iter_entry_points("logshipper.inputs")
@@ -57,18 +61,31 @@ def prepare_step(step_config):
     sequence = [prepare_action(stepname, parameters)
                 for (stepname, parameters) in step_config.items()]
 
-    sequence.sort(key=lambda action: getattr(action, "phase",
-                                             filters.PHASE_FORWARD))
+    sequence.sort(key=lambda action: action.phase)
 
     return sequence
 
 
 def prepare_action(name, parameters):
     entrypoint = FILTER_FACTORIES.get(name)
+    default_phase = filters.PHASE_MANIPULATE
+
+    if not entrypoint:
+        entrypoint = OUTPUT_FACTORIES.get(name)
+        default_phase = filters.PHASE_FORWARD
+
     if not entrypoint:
         entrypoint = pkg_resources.EntryPoint.parse('X=' + name)
+        default_phase = filters.PHASE_FORWARD - 1
+
     filter_factory = entrypoint.load(require=False)
-    return filter_factory(parameters)
+    handler = filter_factory(parameters)
+    assert handler, "Did you forget to actually return the handler"
+
+    if not hasattr(handler, 'phase'):
+        handler.phase = default_phase
+
+    return handler
 
 
 class Pipeline():

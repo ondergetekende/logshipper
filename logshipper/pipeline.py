@@ -143,6 +143,7 @@ class PipelineManager():
         self.should_run = True
         if not self.thread:
             self.thread = eventlet.spawn(self._run)
+            eventlet.sleep()  # allow the thread to catch up
 
     def stop(self):
         self.should_run = False
@@ -193,7 +194,11 @@ class PipelineManager():
             LOG.info("Loading pipeline %s", name)
 
         with open(path, 'r') as yaml_file:
-            pipeline.update(yaml_file.read())
+            try:
+                pipeline.update(yaml_file.read())
+            except Exception:
+                LOG.exception("Unable to initialize pipeline %s", name)
+                raise
 
     def process_in_eventlet(self, message, pipeline_name):
         PIPELINE_POOL.spawn_n(self.process, message, pipeline_name)

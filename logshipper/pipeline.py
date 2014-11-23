@@ -126,16 +126,14 @@ class PipelineManager():
 
         self.watch_manager = pyinotify.WatchManager()
         flags = (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE |
-                 pyinotify.IN_DELETE_SELF | pyinotify.IN_MOVED_TO)
+                 pyinotify.IN_DELETE_SELF | pyinotify.IN_MOVED_TO |
+                 pyinotify.IN_MOVED_FROM | pyinotify.IN_MODIFY |
+                 pyinotify.IN_CLOSE_WRITE)
 
-        for fileglob in self.globs:
-            head, tail = os.path.split(fileglob)
-            if ('?' in tail) or ('*' in tail):
-                self.watch_manager.add_watch(head, flags,
-                                             proc_fun=self._inotified)
-            else:
-                self.watch_manager.add_watch(fileglob, flags,
-                                             proc_fun=self._inotified)
+        for path in set(os.path.dirname(p) for p in self.globs):
+            LOG.debug("Adding path for FS monitoring: %r ", path)
+            self.watch_manager.add_watch(path, flags,
+                                         proc_fun=self._inotified)
 
         self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
             self.watch_manager)
@@ -159,6 +157,7 @@ class PipelineManager():
                     self.load_pipeline(path)
 
             while self.should_run:
+                LOG.debug("starting notifier")
                 self.notifier.loop(lambda _: not self.should_run)
         finally:
             pipelines = self.pipelines.values()
@@ -170,6 +169,9 @@ class PipelineManager():
         if not any(fnmatch.fnmatch(event.pathname, pattern)
                    for pattern in self.globs):
             return
+
+        LOG.info("Filesystem change detected %s %r",
+                 event.maskname, event.pathname)
 
         name = os.path.splitext(os.path.basename(event.pathname))[0]
 

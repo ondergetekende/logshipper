@@ -58,7 +58,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(context.backreferences, [])
         self.assertEqual(message['boo'], 'bar')
 
-    def test_extract(self):
+    def test_extract1(self):
         handler = logshipper.filters.prepare_extract({"message": "(t.st)",
                                                       "foo": "(?P<boo>b.r)"})
         message = {"message": "This is a test.", "foo": "barbar"}
@@ -71,6 +71,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(message['boo'], 'bar')
         self.assertEqual(message['foo'], 'bar')
         self.assertEqual(message['message'], 'This is a .')
+
+    def test_extract2(self):
+        handler = logshipper.filters.prepare_extract({"message": "(t.st)"})
+        message = {"message": "This is a fail."}
+        context = logshipper.context.Context(message, None)
+        result = handler(message, context)
+
+        self.assertEqual(result, logshipper.filters.SKIP_STEP)
 
     def test_edge1(self):
         h = logshipper.filters.prepare_edge("{foo}")
@@ -147,11 +155,8 @@ class Tests(unittest.TestCase):
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)
-        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0,
-                                 tzinfo=pytz.timezone("Europe/Amsterdam"))
-        self.assertEqual(
-            message,
-            {"foo": date})
+        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0)
+        self.assertEqual(message['foo'].replace(tzinfo=None), date)
 
     def test_strptime2(self):
         handler = logshipper.filters.prepare_strptime({

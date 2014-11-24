@@ -194,7 +194,6 @@ class Syslog(BaseInput):
         If set to ``rfc3164``, the much simpler RFC-3164 will be used.
         If set to ``auto``, RFC-5424 messages will be detected and disected,
         while non-RFC-5424 messages will be processed as RFC-3164.
-    ``
 
     Example for ``input.yml``:
 

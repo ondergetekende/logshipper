@@ -289,7 +289,7 @@ def prepare_python(parameters):
             'message': message,
             'context': 'context',
         }
-        exec(code, namespace)
+        six.exec_(code, namespace)
 
     handle_python.phase = PHASE_MANIPULATE + 5
 
@@ -339,7 +339,7 @@ def prepare_strptime(parameters):
         parse = lambda v: datetime.datetime.strptime(v, format)
     else:
         parse = lambda v: dateutil.parser.parse(
-            v, fuzzy=True, default=datetime.datetime.now())
+            v, default=datetime.datetime.now())
 
     def handle_strptime(message, context):
         value = message[fieldname]

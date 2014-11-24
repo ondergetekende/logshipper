@@ -51,6 +51,9 @@ cover/
 
 # Sphinx documentation
 docs/_build/
+docs/inputs.rst
+docs/filters.rst
+docs/outputs.rst
 
 # PyBuilder
 target/

@@ -1,5 +1,6 @@
 coverage
 hacking
+invoke
 mock>=0.8.0
 nose
 nosexcover

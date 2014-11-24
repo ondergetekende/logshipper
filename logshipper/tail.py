@@ -50,12 +50,11 @@ class Tail(logshipper.input.BaseInput):
     """
 
     class FileTail:
-        __slots__ = []
-        fd = None
-        path = None
-        buffer = ""
-        stat = None
-        rescan = True
+        __slots__ = ['fd', 'path', 'buffer', 'stat', 'rescan', 'wd']
+
+        def __init__(self):
+            self.buffer = ""
+            self.fd = None
 
     def __init__(self, filename):
         if isinstance(filename, six.string_types):
@@ -70,6 +69,7 @@ class Tail(logshipper.input.BaseInput):
             self.watch_manager)
 
     def _inotify_file(self, event):
+        LOG.debug("file notified %r", event)
         tail = self.tails.get(event.path)
         if tail:
             if event.mask & pyinotify.IN_MODIFY:
@@ -81,6 +81,7 @@ class Tail(logshipper.input.BaseInput):
                 tail.rescan = True
 
     def _inotify_dir(self, event):
+        LOG.debug("dir notified %r", event)
         tail = self.tails.get(event.path)
         if tail:
             self.process_tail(event.path)
@@ -93,6 +94,9 @@ class Tail(logshipper.input.BaseInput):
         try:
             while self.should_run:
                 self.notifier.loop(lambda _: not self.should_run)
+        except Exception:
+            LOG.exception("notifier loop crashed")
+            raise
         finally:
             self.update_tails([])
 
@@ -102,10 +106,12 @@ class Tail(logshipper.input.BaseInput):
             if not buff:
                 return
 
+            buff = buff.decode('utf8')
+
             # Append to last buffer
             if tail.buffer:
-                buff = tail.buff + buff
-                tail.buff = ""
+                buff = tail.buffer + buff
+                tail.buffer = ""
 
             lines = buff.splitlines(True)
             if lines[-1][-1] != "\n":  # incomplete line in buffer
@@ -187,4 +193,5 @@ class Tail(logshipper.input.BaseInput):
         self.watch_manager.rm_watch(tail.wd)
         os.close(tail.fd)
         if tail.buffer:
+            LOG.debug("Generating message from tail buffer")
             self.handler({'message': tail.buffer})

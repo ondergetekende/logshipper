@@ -32,10 +32,11 @@ class Tail(unittest.TestCase):
         messages = []
 
         def message_handler(m):
+            LOG.debug('event generated %s', m['message'])
             messages.append(m)
 
         with tempfile.NamedTemporaryFile() as f:
-            f.write("test123\n")
+            f.write(b"test123\n")
             f.flush()
 
             tail = logshipper.tail.Tail(f.name)
@@ -43,7 +44,7 @@ class Tail(unittest.TestCase):
             tail.start()
             eventlet.sleep(0.01)  # give thread a chance to open the file
 
-            f.write("second line\n")
+            f.write(b"second line\n")
             f.flush()
             eventlet.sleep(0.01)  # give thread a chance to read the line
 
@@ -56,6 +57,7 @@ class Tail(unittest.TestCase):
         messages = []
 
         def message_handler(m):
+            LOG.debug('event generated %s', m['message'])
             messages.append(m)
 
         try:
@@ -65,11 +67,10 @@ class Tail(unittest.TestCase):
             tail.start()
             eventlet.sleep(0.01)  # give thread a chance to open the file
 
-            LOG.debug("about to create file")
+            LOG.debug("about to write line 1")
             with open(path + "/test.log", 'w') as f:
                 f.write("line 1\n")
 
-            LOG.debug("about to write line 1")
             eventlet.sleep(0.01)  # give thread a chance to read the line
             self.assertEqual(messages, [{"message": "line 1"}])
 

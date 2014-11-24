@@ -112,7 +112,8 @@ def prepare_template(template):
     result = ("def template(args, kwargs):\n"
               "  return %s" % code)
 
-    exec(result, namespace)
+    six.exec_(result, namespace)
+
     fn = namespace["template"]
     fn.interpolate = lambda context: fn(context.backreferences,
                                         context.message)
@@ -141,4 +142,5 @@ class Context():
     def next_step(self):
         self.match = None
         self.match_field = None
+        self.matches = None
         self.backreferences = []

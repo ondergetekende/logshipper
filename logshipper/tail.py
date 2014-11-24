@@ -144,6 +144,8 @@ class Tail(logshipper.input.BaseInput):
     def update_tails(self, globs, do_read_all=True):
         watches = set()
 
+        LOG.debug("update tails: %r", globs)
+
         for fileglob in globs:
             for path in glob.iglob(fileglob):
                 self.process_tail(path, not do_read_all)
@@ -156,14 +158,12 @@ class Tail(logshipper.input.BaseInput):
         for path in globs:
             while len(path) > 1:
                 path = os.path.dirname(path)
-                if path in self.dir_watches:
-                    continue
+                if path not in self.dir_watches:
+                    LOG.debug("Monitoring dir %s", path)
 
-                LOG.debug("Monitoring dir %s", path)
-
-                self.dir_watches[path] = self.watch_manager.add_watch(
-                    path, INOTIFY_DIR_MASK, do_glob=True,
-                    proc_fun=self._inotify_dir)
+                    self.dir_watches[path] = self.watch_manager.add_watch(
+                        path, INOTIFY_DIR_MASK, do_glob=True,
+                        proc_fun=self._inotify_dir)
 
                 if '*' not in path and '?' not in path:
                     break

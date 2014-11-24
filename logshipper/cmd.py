@@ -18,6 +18,7 @@ import logging
 import os
 
 import eventlet
+eventlet.monkey_patch()
 
 import logshipper.pipeline
 
@@ -98,6 +99,11 @@ def ship_file():
             with open(file) as f:
                 for line in f:
                     line = line.rstrip("\r\n")
-                    pipeline_manager.process({'message': line}, ARGS.pipeline)
+                    try:
+                        pipeline_manager.process({'message': line},
+                                                 ARGS.pipeline)
+                    except Exception:
+                        LOG.exception("Error processing %r", line)
+                        raise
     finally:
         pipeline_manager.stop()

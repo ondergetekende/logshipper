@@ -14,6 +14,7 @@
 #    under the License.
 
 
+import datetime
 import re
 import time
 
@@ -293,3 +294,59 @@ def prepare_python(parameters):
     handle_python.phase = PHASE_MANIPULATE + 5
 
     return handle_python
+
+
+def prepare_strptime(parameters):
+    """Parse dates
+
+    The provided code is executed. The variable ``message`` is set to the
+    a mapping type (dict) representing the message. Any changes to the message
+    will be visible in the rest of the pipeline.
+
+    Parameters:
+
+    ```field```
+        Required. The field containing the timestamp to be processed.
+    ```format```
+        The strftime format. More details on http://strftime.org/.
+        When not specified, dateutil's fuzzy parsing is used.
+    ```timezone```
+        The timezone to use for date interpretation. Defaults to the locally
+        configured timezone.
+
+    Example:
+
+    .. code:: yaml
+
+        strptime:
+            field: timestamp
+            # Nov 13 01:22:22
+            format: %b %d %H:%M:%S
+    """
+
+    fieldname = parameters['field']
+    format = parameters.get('format')
+    timezone = parameters.get('timezone')
+    import dateutil.parser
+    if timezone:
+        import pytz
+        timezone = pytz.timezone(timezone)
+    else:
+        import dateutil.tz
+        timezone = dateutil.tz.tzlocal()
+
+    if format:
+        parse = lambda v: datetime.datetime.strptime(v, format)
+    else:
+        parse = lambda v: dateutil.parser.parse(
+            v, fuzzy=True, default=datetime.datetime.now())
+
+    def handle_strptime(message, context):
+        value = message[fieldname]
+        value = parse(value)
+
+        if not value.tzinfo:
+            value = value.replace(tzinfo=timezone)
+        message[fieldname] = value
+
+    return handle_strptime

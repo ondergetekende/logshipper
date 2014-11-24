@@ -2,6 +2,8 @@ eventlet
 pika
 pyinotify
 python-statsd
+python-dateutil
 pyyaml
+pytz
 requests
 six

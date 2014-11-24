@@ -13,8 +13,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
+import datetime
 import unittest
+
+import pytz
 
 import logshipper.context
 import logshipper.filters
@@ -135,3 +137,35 @@ class Tests(unittest.TestCase):
         result = handler(message, context)
         self.assertEqual(result, None)
         self.assertEqual(message, {"a": 4})
+
+    def test_strptime1(self):
+        handler = logshipper.filters.prepare_strptime({
+            "field": "foo",
+        })
+
+        message = {"foo": "Nov 13 01:22:22 CEST"}
+        context = logshipper.context.Context(message, None)
+        result = handler(message, context)
+        self.assertEqual(result, None)
+        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0,
+                                 tzinfo=pytz.timezone("Europe/Amsterdam"))
+        self.assertEqual(
+            message,
+            {"foo": date})
+
+    def test_strptime2(self):
+        handler = logshipper.filters.prepare_strptime({
+            "format": "%Y %b %d %H:%M:%S",
+            "field": "foo",
+            "timezone": "Europe/Amsterdam"
+        })
+
+        message = {"foo": "2014 Nov 13 01:22:22"}
+        context = logshipper.context.Context(message, None)
+        result = handler(message, context)
+        self.assertEqual(result, None)
+        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0,
+                                 tzinfo=pytz.timezone("Europe/Amsterdam"))
+        self.assertEqual(
+            message,
+            {"foo": date})

@@ -18,6 +18,7 @@ import datetime
 import re
 import time
 
+import pytz
 import six
 
 import logshipper.context
@@ -348,5 +349,53 @@ def prepare_strptime(parameters):
         if not value.tzinfo:
             value = value.replace(tzinfo=timezone)
         message[fieldname] = value
+
+    return handle_strptime
+
+
+TIMEDELTA_REGEX = re.compile(r'^\s*'
+                             r'((?P<days>\d+)d\s*)?'
+                             r'((?P<hours>\d+)h\s*)?'
+                             r'((?P<minutes>\d+)m\s*)?'
+                             r'((?P<seconds>\d+(.\d+)?)s)?'
+                             r'\s*$')
+
+
+def parse_timedelta(time):
+    # Taken from http://stackoverflow.com/questions/4628122
+    parts = TIMEDELTA_REGEX.match(time)
+    if not parts:
+        raise Exception("Invalid delta format: %s", )
+
+    args = dict((key, float(value)) for (key, value) in
+                parts.groupdict().items()
+                if value)
+    return datetime.timedelta(**args)
+
+
+def prepare_timewindow(parameters):
+    """Drops messages that are too old, or ahead of their time
+
+    Given a range like ```4d3h3m - 2m```, message are dropped when they fall
+    outside the given timerange, relative to the current date. e.g. ```1h-2m```
+    allows messages that are timestamped between an hour in the past, and 2
+    minutes in the future.
+    """
+    time = parameters or "1m"
+
+    time = time.split('-', 1)
+    if len(time) == 1:
+        upper_bound = parse_timedelta(time[0])
+        lower_bound = -upper_bound
+    else:
+        lower_bound = -parse_timedelta(time[0])
+        upper_bound = parse_timedelta(time[1])
+
+    def handle_strptime(message, context):
+        timestamp = message['timestamp'].astimezone(pytz.utc)
+        now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+        delta = timestamp - now
+        if delta < lower_bound or delta > upper_bound:
+            return SKIP_STEP
 
     return handle_strptime

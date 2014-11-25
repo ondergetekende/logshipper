@@ -255,10 +255,11 @@ class Syslog(BaseInput):
         eventlet.serve(self.server, self.handle)
 
     def handle(self, socket, address):
-        fileobj = socket.makefile('r', 4096, encoding='utf-8')
+        LOG.info("Accepted syslog connection from %r", address[0])
+        fileobj = socket.makefile('r')
 
         for line in fileobj:
-            self.process_message(line)
+            self.process_message(line.decode('utf8'))
 
     def process_message(self, line):
         line = line.rstrip('\r\n')

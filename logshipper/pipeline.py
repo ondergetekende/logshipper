@@ -37,7 +37,7 @@ FILTER_FACTORIES = dict(
 )
 OUTPUT_FACTORIES = dict(
     (entrypoint.name, entrypoint) for entrypoint in
-    pkg_resources.iter_entry_points("logshipper.filters")
+    pkg_resources.iter_entry_points("logshipper.outputs")
 )
 INPUT_FACTORIES = dict(
     (entrypoint.name, entrypoint) for entrypoint in

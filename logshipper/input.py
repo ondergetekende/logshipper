@@ -217,6 +217,9 @@ class Syslog(BaseInput):
         def tzname(self, dt):
             return "unnamed"
 
+        def __repr__(self):
+            return "rfc5424_tz(%r)" % self.offset
+
     rfc3164_matcher = re.compile(r'<(?P<prival>\d{1,3})>')
 
     rfc5424_matcher = re.compile(r"""
@@ -287,7 +290,7 @@ class Syslog(BaseInput):
                     tz_offset = datetime.timedelta(0)
                     timestamp = timestamp[:-1]
                 else:
-                    direction = 1 if timestamp[-6] == '+' else -1
+                    direction = 1 if (timestamp[-6] == '+') else -1
                     tz_offset = datetime.timedelta(
                         hours=direction * int(timestamp[-5:-3]),
                         minutes=direction * int(timestamp[-2:]),

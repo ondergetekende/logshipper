@@ -330,7 +330,6 @@ def prepare_strptime(parameters):
     timezone = parameters.get('timezone')
     import dateutil.parser
     if timezone:
-        import pytz
         timezone = pytz.timezone(timezone)
     else:
         import dateutil.tz
@@ -346,8 +345,8 @@ def prepare_strptime(parameters):
         value = message[fieldname]
         value = parse(value)
 
-        if not value.tzinfo:
-            value = value.replace(tzinfo=timezone)
+        if value.tzinfo:
+            value = value.astimezone(pytz.utc).replace(tzinfo=None)
         message[fieldname] = value
 
     return handle_strptime
@@ -391,11 +390,11 @@ def prepare_timewindow(parameters):
         lower_bound = -parse_timedelta(time[0])
         upper_bound = parse_timedelta(time[1])
 
-    def handle_strptime(message, context):
-        timestamp = message['timestamp'].astimezone(pytz.utc)
-        now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+    def handle_timewindow(message, context):
+        timestamp = message['timestamp']
+        now = datetime.datetime.utcnow()
         delta = timestamp - now
         if delta < lower_bound or delta > upper_bound:
             return SKIP_STEP
 
-    return handle_strptime
+    return handle_timewindow

@@ -37,14 +37,16 @@ class Syslog(unittest.TestCase):
         syslog = logshipper.input.Syslog()
         syslog.set_handler(handler)
 
-        syslog.process_message("<132>Foo")
+        syslog.process_message(u"<132>Foo", 'fakehost')
 
         self.assertEqual(msg[0]['message'], "Foo")
         self.assertEqual(msg[0]['facility'], "local0")
         self.assertEqual(msg[0]['severity'], "warning")
+        self.assertEqual(msg[0]['hostname'], "fakehost")
 
         self.assertSetEqual(set(msg[0]),
-                            set(["message", "facility", "severity"]))
+                            set(["message", "facility", "severity",
+                                 "hostname", "timestamp"]))
 
     def test_rfc5424(self):
         msg = []
@@ -57,13 +59,15 @@ class Syslog(unittest.TestCase):
         syslog.set_handler(handler)
 
         syslog.process_message(
-            "<165>1 2003-10-11T22:14:15.003Z mymachine.example.com evntslog - "
-            "ID47 [exampleSDID@32473 iut=\"3\" eventSource=\"Application\" "
-            "eventID=\"1011\"] Actual event text")
+            u"<165>1 2003-10-11T22:14:15.003Z machine.example.com evntslog - "
+            u"ID47 [exampleSDID@32473 iut=\"3\" eventSource=\"Application\" "
+            u"eventID=\"1011\"] Actual event text", 'fakehost')
         syslog.process_message(
-            "<165>1 2003-10-11T22:14:15.003+01:00 - - - - - Actual event text")
+            u"<165>1 2003-10-11T22:14:15.003+01:00 - - - - - event text 1",
+            'fakehost')
         syslog.process_message(
-            "<165>1 2003-10-11T22:14:15.003-01:00 - - - - - Actual event text")
+            u"<165>1 2003-10-11T22:14:15.003-01:00 - - - - - event text 2",
+            'fakehost')
 
         self.assertEqual(msg[0]['message'], 'Actual event text')
 
@@ -71,7 +75,7 @@ class Syslog(unittest.TestCase):
         self.assertEqual(msg[0]['severity'], 'notice')
         self.assertEqual(msg[0]['appname'], 'evntslog')
         self.assertEqual(msg[0]['msgid'], 'ID47')
-        self.assertEqual(msg[0]['hostname'], 'mymachine.example.com')
+        self.assertEqual(msg[0]['hostname'], 'machine.example.com')
         self.assertEqual(msg[0]['facility'], 'local4')
         self.assertEqual(msg[0]['timestamp'].year, 2003)
         self.assertEqual(msg[0]['timestamp'].month, 10)
@@ -92,10 +96,10 @@ class Syslog(unittest.TestCase):
                                  "procid", "appname", 'structured_data',
                                  'hostname', 'timestamp', 'msgid']))
 
-        self.assertEqual(msg[1]['timestamp'].tzinfo.utcoffset(),
-                         datetime.timedelta(hours=1))
-        self.assertEqual(msg[2]['timestamp'].tzinfo.utcoffset(),
-                         datetime.timedelta(hours=-1))
+        self.assertEqual(msg[1]['timestamp'],
+                         datetime.datetime(2003, 10, 11, 23, 14, 15, 3000))
+        self.assertEqual(msg[2]['timestamp'],
+                         datetime.datetime(2003, 10, 11, 21, 14, 15, 3000))
 
     def test_autorfc(self):
         msg = []
@@ -107,9 +111,10 @@ class Syslog(unittest.TestCase):
         syslog = logshipper.input.Syslog()
         syslog.set_handler(handler)
 
-        syslog.process_message("<132>Foo")
+        syslog.process_message(u"<132>Foo", "fakehost")
         syslog.process_message(
-            "<165>1 2003-10-11T22:14:15.003Z - - - - - Actual event text")
+            u"<165>1 2003-10-11T22:14:15.003Z - - - - - Actual event text",
+            "fakehost")
 
         self.assertEqual(msg[0]['message'], "Foo")
         self.assertEqual(msg[1]['message'], 'Actual event text')

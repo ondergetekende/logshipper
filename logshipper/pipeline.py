@@ -14,7 +14,6 @@
 #    under the License.
 
 
-import datetime
 import fnmatch
 import glob
 import logging
@@ -118,7 +117,9 @@ class Pipeline():
             input_.stop()
 
     def process_in_eventlet(self, message):
-        message.setdefault('timestamp', datetime.datetime.utcnow())
+        assert 'timestamp' in message
+        assert 'hostname' in message
+        assert 'message' in message
         PIPELINE_POOL.spawn_n(self.process, message)
 
     def process(self, message):

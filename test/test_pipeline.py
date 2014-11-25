@@ -23,7 +23,8 @@ import logshipper.pipeline
 
 
 class TestInput(logshipper.input.BaseInput):
-    testmessage = {"generated": 1}
+    testmessage = {"generated": 1, 'message': 'gen1', 'hostname': None,
+                   "timestamp": None}
 
     def _run(self):
         self.handler(dict(self.testmessage))
@@ -96,7 +97,8 @@ class Tests(unittest.TestCase):
 
         eventlet.sleep(.03)
 
-        m = pipeline.process({})
+        m = pipeline.process({'timestamp': None, 'hostname': None,
+                              'message': u''})
         self.assertEqual(len(m['history']), 2)
         self.assertIn('generated', m['history'][0])
         self.assertNotIn('generated', m['history'][1])

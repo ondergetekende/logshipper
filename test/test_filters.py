@@ -16,8 +16,6 @@
 import datetime
 import unittest
 
-import pytz
-
 import logshipper.context
 import logshipper.filters
 
@@ -155,8 +153,8 @@ class Tests(unittest.TestCase):
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)
-        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0)
-        self.assertEqual(message['foo'].replace(tzinfo=None), date)
+        date = datetime.datetime(2014, 11, 13, 0, 22, 22, 0)
+        self.assertEqual(message['foo'], date)
 
     def test_strptime2(self):
         handler = logshipper.filters.prepare_strptime({
@@ -169,58 +167,41 @@ class Tests(unittest.TestCase):
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)
-        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0,
-                                 tzinfo=pytz.timezone("Europe/Amsterdam"))
-        self.assertEqual(
-            message,
-            {"foo": date})
+        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0)
+        self.assertEqual(message, {"foo": date})
 
     def test_timewindow1(self):
         handler = logshipper.filters.prepare_timewindow("1m")
 
-        cest = pytz.timezone("Europe/Amsterdam")
-        now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+        now = datetime.datetime.utcnow()
 
         message = {"timestamp": now}
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)
 
-        message["timestamp"] = (now.astimezone(cest))
-        result = handler(message, context)
-        self.assertEqual(result, None)
-
-        message["timestamp"] = (now.astimezone(cest) -
-                                datetime.timedelta(minutes=2))
+        message["timestamp"] = now - datetime.timedelta(minutes=2)
         result = handler(message, context)
         self.assertEqual(result, logshipper.filters.SKIP_STEP)
 
-        message["timestamp"] = (now.astimezone(cest) +
-                                datetime.timedelta(minutes=2))
+        message["timestamp"] = now + datetime.timedelta(minutes=2)
         result = handler(message, context)
         self.assertEqual(result, logshipper.filters.SKIP_STEP)
 
     def test_timewindow2(self):
         handler = logshipper.filters.prepare_timewindow("1m-3m")
 
-        cest = pytz.timezone("Europe/Amsterdam")
-        now = datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+        now = datetime.datetime.utcnow()
 
         message = {"timestamp": now}
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)
 
-        message["timestamp"] = (now.astimezone(cest))
-        result = handler(message, context)
-        self.assertEqual(result, None)
-
-        message["timestamp"] = (now.astimezone(cest) -
-                                datetime.timedelta(minutes=2))
+        message["timestamp"] = now - datetime.timedelta(minutes=2)
         result = handler(message, context)
         self.assertEqual(result, logshipper.filters.SKIP_STEP)
 
-        message["timestamp"] = (now.astimezone(cest) +
-                                datetime.timedelta(minutes=2))
+        message["timestamp"] = now + datetime.timedelta(minutes=2)
         result = handler(message, context)
         self.assertEqual(result, None)

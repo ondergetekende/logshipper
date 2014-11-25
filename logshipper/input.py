@@ -16,6 +16,7 @@
 import datetime
 import logging
 import re
+import socket
 import sys
 
 import eventlet
@@ -35,6 +36,16 @@ class BaseInput(object):
 
     def set_handler(self, handler):
         self.handler = handler
+
+    def emit(self, message):
+        message.setdefault('timestamp', datetime.datetime.utcnow())
+        message.setdefault('hostname', socket.gethostname())
+
+        assert six.PY3 or isinstance(message['message'], unicode)
+        assert isinstance(message['timestamp'], datetime.datetime)
+        assert message['timestamp'].tzinfo is None
+
+        self.handler(message)
 
     def start(self):
         self.should_run = True
@@ -119,7 +130,7 @@ class Command(BaseInput):
                             break
 
                         line = line.decode('utf8')
-                        self.handler({"message": line.rstrip('\n')})
+                        self.emit({"message": line.rstrip('\n')})
             else:
                 def process_pipe(pipe):
                     buf = ""
@@ -133,7 +144,7 @@ class Command(BaseInput):
                         buf = messages[-1]
                         messages = messages[:-1]
                         for message in messages:
-                            self.handler({"message": message})
+                            self.emit({"message": message})
 
             stdout_thread = eventlet.spawn(process_pipe, p.stdout)
             stderr_thread = eventlet.spawn(process_pipe, p.stderr)
@@ -163,7 +174,7 @@ class Stdin(BaseInput):
     def _run(self):
         while self.should_run:
             line = eventlet.tpool.execute(sys.stdin.readline)
-            self.handler({"message": line.rstrip()})
+            self.emit({"message": line.rstrip()})
 
 
 SYSLOG_PRIORITIES = ['emergency', 'alert', 'critical', 'error', 'warning',
@@ -262,9 +273,9 @@ class Syslog(BaseInput):
         fileobj = socket.makefile('r')
 
         for line in fileobj:
-            self.process_message(line.decode('utf8'))
+            self.process_message(line.decode('utf8'), address[0])
 
-    def process_message(self, line):
+    def process_message(self, line, peer):
         line = line.rstrip('\r\n')
 
         for r in self.regexes:
@@ -273,6 +284,7 @@ class Syslog(BaseInput):
                 continue
 
             message = match.groupdict()
+            message.setdefault('hostname', peer)
 
             prival = int(message.pop('prival'))
             if prival <= 255:
@@ -303,12 +315,15 @@ class Syslog(BaseInput):
                 if len(timestamp) == 2:
                     seconds = float("." + timestamp[1])
                     ts = ts + datetime.timedelta(seconds=seconds)
-                ts = ts.replace(tzinfo=Syslog.rfc5424_tz(tz_offset))
+
+                if tz_offset:
+                    ts = ts + tz_offset
+
                 message['timestamp'] = ts
 
             message['message'] = line[match.end():]
 
-            self.handler(message)
+            self.emit(message)
             return
 
         LOG.warning("dropping message, not RFC compliant")

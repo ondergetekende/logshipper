@@ -31,8 +31,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Processes log messages and sends them elsewhere")
 
-    parser.add_argument('pipeline', action='append',
-                        default="/etc/logshipper/",
+    parser.add_argument('pipeline', nargs='+',
                         help='Where to find pipelines (*.yml files)')
 
     parser.add_argument('--verbose', action='store_true')

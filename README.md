@@ -1,9 +1,8 @@
-
-[<img src="https://img.shields.io/travis/ondergetekende/logshipper.svg?style=flat">](https://travis-ci.org/redodo/logshipper)
-[<img src="https://img.shields.io/coveralls/ondergetekende/logshipper.svg?style=flat">](https://coveralls.io/r/redodo/logshipper)
+[<img src="https://img.shields.io/travis/ondergetekende/logshipper.svg?style=flat">](https://travis-ci.org/ondergetekende/logshipper)
+[<img src="https://img.shields.io/coveralls/ondergetekende/logshipper.svg?style=flat">](https://coveralls.io/r/ondergetekende/logshipper)
 [<img src="https://img.shields.io/pypi/v/logshipper.svg?style=flat">](https://pypi.python.org/pypi/logshipper)
 [<img src="https://pypip.in/py_versions/logshipper/badge.svg?style=flat">](https://pypi.python.org/pypi/logshipper)
-[<img src="https://img.shields.io/pypi/l/logshipper.svg?style=flat">](https://github.com/redodo/logshipper/blob/master/LICENSE)
+[<img src="https://img.shields.io/pypi/l/logshipper.svg?style=flat">](https://github.com/ondergetekende/logshipper/blob/master/LICENSE)
 
 Log shipper
 ===================

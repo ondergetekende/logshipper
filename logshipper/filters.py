@@ -327,13 +327,7 @@ def prepare_strptime(parameters):
 
     fieldname = parameters['field']
     format = parameters.get('format')
-    timezone = parameters.get('timezone')
     import dateutil.parser
-    if timezone:
-        timezone = pytz.timezone(timezone)
-    else:
-        import dateutil.tz
-        timezone = dateutil.tz.tzlocal()
 
     if format:
         parse = lambda v: datetime.datetime.strptime(v, format)

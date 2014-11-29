@@ -95,10 +95,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(pipeline.inputs), 1)
         self.assertEqual(len(pipeline.steps), 2)
 
+        pipeline.start()
         eventlet.sleep(.03)
 
         m = pipeline.process({'timestamp': None, 'hostname': None,
                               'message': u''})
+        
+        pipeline.stop()
+
         self.assertEqual(len(m['history']), 2)
         self.assertIn('generated', m['history'][0])
         self.assertNotIn('generated', m['history'][1])

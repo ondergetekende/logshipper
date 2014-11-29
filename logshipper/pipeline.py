@@ -79,7 +79,7 @@ def prepare_action(name, parameters):
 
     filter_factory = entrypoint.load(require=False)
     handler = filter_factory(parameters)
-    assert handler, "Did you forget to actually return the handler"
+    assert handler, "Did you forget to actually return the handler?"
 
     if not hasattr(handler, 'phase'):
         handler.phase = default_phase
@@ -92,10 +92,13 @@ class Pipeline():
         self.manager = manager
         self.steps = []
         self.inputs = []
+        self.started = False
 
     def update(self, pipeline_yaml):
         pipeline = yaml.load(pipeline_yaml)
-        self.stop()
+        started = self.started
+        if started:
+            self.stop()
 
         self.steps = [prepare_step(step) for step in pipeline.get('steps', [])]
 
@@ -106,9 +109,11 @@ class Pipeline():
             input_config = sum((c.items() for c in input_config), [])
         self.inputs = [prepare_input(klass, params, self.process_in_eventlet)
                        for klass, params in input_config]
-        self.start()
+        if started:
+            self.start()
 
     def start(self):
+        self.started = False
         for input_ in self.inputs:
             input_.start()
 
@@ -169,12 +174,14 @@ class PipelineManager():
         self.thread = None
         thread.kill()
 
+    def load_pipelines(self):
+        for fileglob in self.globs:
+            for path in glob.iglob(fileglob):
+                self.load_pipeline(path)
+
     def _run(self):
         try:
-            for fileglob in self.globs:
-                for path in glob.iglob(fileglob):
-                    self.load_pipeline(path)
-
+            self.load_pipeline()
             while self.should_run:
                 LOG.debug("starting notifier")
                 self.notifier.loop(lambda _: not self.should_run)

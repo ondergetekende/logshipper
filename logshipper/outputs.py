@@ -123,7 +123,8 @@ def prepare_statsd(parameters):
 
     type = parameters.get('type', 'counter')
     name_template = logshipper.context.prepare_template(parameters['name'])
-    val_template = logshipper.context.prepare_template(parameters['value'], 1)
+    val_template = logshipper.context.prepare_template(
+        parameters.get('value', 1))
     multiplier = float(parameters.get('multiplier', 1.0))
 
     if type == 'counter':

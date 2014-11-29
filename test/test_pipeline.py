@@ -100,7 +100,7 @@ class Tests(unittest.TestCase):
 
         m = pipeline.process({'timestamp': None, 'hostname': None,
                               'message': u''})
-        
+
         pipeline.stop()
 
         self.assertEqual(len(m['history']), 2)

@@ -7,5 +7,5 @@ install:
   - "pip install -r requirements.txt"
   - "pip install -r test-requirements.txt"
   - "pip install coveralls"
-script: coverage run --source=tortilla test_tortilla.py
+script: nosetests --with-coverage --cover-package=logshipper
 after_success: coveralls

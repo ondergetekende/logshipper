@@ -14,8 +14,12 @@
 #    under the License.
 
 import argparse
+import bz2
+import gzip
 import logging
 import os
+import sys
+import time
 
 import eventlet
 eventlet.monkey_patch()
@@ -91,18 +95,45 @@ def ship_file():
     pipeline_manager = logshipper.pipeline.PipelineManager(
         [os.path.abspath(p) for p in ARGS.pipeline_path])
 
-    pipeline_manager.start()
+    pipeline_manager.load_pipelines()
 
-    try:
-        for file in ARGS.file:
-            with open(file) as f:
-                for line in f:
-                    line = line.rstrip("\r\n")
-                    try:
-                        pipeline_manager.process({'message': line},
-                                                 ARGS.pipeline)
-                    except Exception:
-                        LOG.exception("Error processing %r", line)
-                        raise
-    finally:
-        pipeline_manager.stop()
+    for file in ARGS.file:
+        # Peek to detect gzip
+        with open(file, 'rb') as f:
+            header = f.read(16)
+
+        if header[0:2] == b"\037\213":
+            print("Processing gzipped file %s" % file)
+            f = gzip.open(file)
+        elif header[0:3] == b"\x42\x5A\x68":
+            print("Processing bz2'ed file %s" % file)
+            f = bz2.BZ2File(file)
+        else:
+            print("Processing uncompressed file %s" % file)
+            f = open(file)
+
+        with f:
+            lines = 0
+            t0 = time.time()
+            treport = 0
+            for line in f:
+                lines += 1
+                line = line.rstrip("\r\n")
+                try:
+                    pipeline_manager.process({'message': line},
+                                             ARGS.pipeline)
+                except KeyboardInterrupt:
+                    break
+                except Exception:
+                    print("\n")
+                    LOG.exception("Error processing %r", line)
+                    continue
+
+                if (time.time() - treport) > 1:
+                    rate = lines / (time.time() - t0)
+                    sys.stdout.write(
+                        "Processing %i lines, %4.1f/s\r" % (lines, rate))
+                    treport = time.time()
+                sys.stdout.flush()
+
+            print("Processed ")                    

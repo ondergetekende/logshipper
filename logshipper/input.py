@@ -41,7 +41,7 @@ class BaseInput(object):
         message.setdefault('timestamp', datetime.datetime.utcnow())
         message.setdefault('hostname', socket.gethostname())
 
-        assert six.PY3 or isinstance(message['message'], unicode)
+        assert six.PY3 or isinstance(message['message'], six.text_type)
         assert isinstance(message['timestamp'], datetime.datetime)
         assert message['timestamp'].tzinfo is None
 

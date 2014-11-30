@@ -15,8 +15,8 @@
 
 
 import datetime
-import unittest
 import sys
+import unittest
 
 import mock
 import statsd

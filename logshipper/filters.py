@@ -347,10 +347,10 @@ def prepare_strptime(parameters):
 
 
 TIMEDELTA_REGEX = re.compile(r'^\s*'
-                             r'((?P<days>\d+)d\s*)?'
-                             r'((?P<hours>\d+)h\s*)?'
-                             r'((?P<minutes>\d+)m\s*)?'
-                             r'((?P<seconds>\d+(.\d+)?)s)?'
+                             r'((?P<days>\d+(\.\d+)?)d\s*)?'
+                             r'((?P<hours>\d+(\.\d+)?)h\s*)?'
+                             r'((?P<minutes>\d+(\.\d+)?)m\s*)?'
+                             r'((?P<seconds>\d+(\.\d+)?)s)?'
                              r'\s*$')
 
 
@@ -358,7 +358,7 @@ def parse_timedelta(time):
     # Taken from http://stackoverflow.com/questions/4628122
     parts = TIMEDELTA_REGEX.match(time)
     if not parts:
-        raise Exception("Invalid delta format: %s", )
+        raise ValueError("Invalid delta format: %s", time)
 
     args = dict((key, float(value)) for (key, value) in
                 parts.groupdict().items()

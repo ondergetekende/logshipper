@@ -136,6 +136,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(result, None)
         self.assertEqual(message, {"baz": "yeah"})
 
+    def test_unset_multiple(self):
+        handler = logshipper.filters.prepare_unset(["foo", "bar"])
+        message = {"foo": "shippe", "baz": "yeah"}
+        context = logshipper.context.Context(message, None)
+        context.backreferences = ("", "og",)
+        result = handler(message, context)
+        self.assertEqual(result, None)
+        self.assertEqual(message, {"baz": "yeah"})
+
     def test_python(self):
         handler = logshipper.filters.prepare_python("message['a'] = 4")
         message = {}
@@ -145,7 +154,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(message, {"a": 4})
 
     @unittest.skip("Travis-ci has some env where the timezone doesn't parse")
-    def test_strptime1(self):
+    def test_strptime_parse_tz(self):
         handler = logshipper.filters.prepare_strptime({
             "field": "foo",
         })
@@ -155,6 +164,18 @@ class Tests(unittest.TestCase):
         result = handler(message, context)
         self.assertEqual(result, None)
         date = datetime.datetime(2014, 11, 13, 0, 22, 22, 0)
+        self.assertEqual(message['foo'], date)
+
+    def test_strptime_parse(self):
+        handler = logshipper.filters.prepare_strptime({
+            "field": "foo",
+        })
+
+        message = {"foo": "Nov 13 01:22:22"}
+        context = logshipper.context.Context(message, None)
+        result = handler(message, context)
+        self.assertEqual(result, None)
+        date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0)
         self.assertEqual(message['foo'], date)
 
     def test_strptime2(self):
@@ -170,6 +191,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(result, None)
         date = datetime.datetime(2014, 11, 13, 1, 22, 22, 0)
         self.assertEqual(message, {"foo": date})
+
+    def test_parse_timedelta(self):
+        self.assertEqual(logshipper.filters.parse_timedelta('1d2h  5m '),
+                         datetime.timedelta(days=1, hours=2, minutes=5))
+
+        self.assertEqual(logshipper.filters.parse_timedelta('1.5d'),
+                         datetime.timedelta(days=1, hours=12))
+
+        with self.assertRaises(ValueError):
+            logshipper.filters.parse_timedelta('1d2h5r')
 
     def test_timewindow1(self):
         handler = logshipper.filters.prepare_timewindow("1m")

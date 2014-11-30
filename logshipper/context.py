@@ -61,7 +61,7 @@ def _template_code_string(template):
     namespace = {}
     result = []
     basic_index = 1
-    highest_index = -1
+
     for literal, field_name, format_spec, conversion in fmt.parse(template):
 
         # output the literal text
@@ -72,14 +72,11 @@ def _template_code_string(template):
         if field_name is not None:
             if "[" in field_name or "." in field_name:
                 namespace["fmt"] = fmt
-                value_code = "fmt.get_field(%r, args, kwargs)"
+                value_code = "fmt.get_field(%r, args, kwargs)[0]" % field_name
             elif field_name.isdigit():
-                idx = int(field_name)
                 value_code = "args[%s]" % field_name
-                highest_index = max(highest_index, idx)
             elif not field_name:
                 value_code = "args[%i]" % basic_index
-                highest_index = max(highest_index, basic_index)
                 basic_index += 1
             else:
                 value_code = "kwargs.get(%r, '')" % field_name
@@ -94,7 +91,7 @@ def _template_code_string(template):
             elif '{' in format_spec:
                 namespace["fmt"] = fmt
                 result.append("format(%s, fmt.vformat(%r, args, kwargs))" %
-                              (format_spec, value_code))
+                              (value_code, format_spec))
             else:
                 result.append("format(%s, %r)\n" % (value_code, format_spec))
 
@@ -132,12 +129,6 @@ class Context():
         self.match_field = None
         self.matches = None
         self.backreferences = []
-
-    def interpolate_template(self, template):
-        if not template:
-            return template
-
-        return template.format(*self.backreferences, **self.message)
 
     def next_step(self):
         self.match = None

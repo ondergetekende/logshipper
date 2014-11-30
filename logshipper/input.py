@@ -13,6 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import codecs
 import datetime
 import logging
 import re
@@ -109,7 +110,7 @@ class Command(BaseInput):
             self.process.terminate()
         super(Command, self).stop()
 
-    def _run(self):
+    def run(self):
         while self.should_run:
             start_time = time.time()
             if isinstance(self.commandline, six.string_types):
@@ -139,20 +140,16 @@ class Command(BaseInput):
                         self.emit({"message": line.rstrip('\n')})
             else:
                 def process_pipe(pipe):
-                    buf = ""
-                    while True:
-                        chunk = pipe.read(1)
-
-                        if not chunk:
-                            break
+                    buf = u""
+                    for chunk in codecs.iterdecode(pipe, 'utf8'):
                         buf += chunk
                         messages = buf.split(self.separator)
                         buf = messages[-1]
                         messages = messages[:-1]
                         for message in messages:
-                            self.emit({"message": message.decode('utf8')})
+                            self.emit({"message": message})
                     if buf:
-                        self.emit({"message": buf.decode('utf8')})
+                        self.emit({"message": buf})
 
             stdout_thread = eventlet.spawn(process_pipe, p.stdout)
             stderr_thread = eventlet.spawn(process_pipe, p.stderr)
@@ -179,7 +176,7 @@ class Stdin(BaseInput):
 
         - stdin: {}
     """
-    def _run(self):
+    def run(self):
         while self.should_run:
             line = eventlet.tpool.execute(sys.stdin.readline)
             self.emit({"message": line.rstrip()})
@@ -272,7 +269,7 @@ class Syslog(BaseInput):
         else:
             raise Exception('protocol must be either rfc3164, rfc5424 or auto')
 
-    def _run(self):
+    def run(self):
         self.server = eventlet.listen((self.bind, self.port))
         eventlet.serve(self.server, self.handle)
 

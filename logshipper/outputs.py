@@ -141,7 +141,7 @@ def prepare_statsd(parameters):
                                      statsd_connection)
         delta = False
     else:
-        raise Exception()
+        raise Exception()  # pragma: nocover
 
     def handle_statsd(message, context):
         name = name_template.interpolate(context)
@@ -152,7 +152,7 @@ def prepare_statsd(parameters):
         else:
             statsd_client.send(name, float(value) * multiplier)
 
-    return statsd
+    return handle_statsd
 
 
 def prepare_stdout(parameters):
@@ -177,7 +177,7 @@ def prepare_stdout(parameters):
     return handle_stdout
 
 
-def prepare_debug(parameters):
+def prepare_debug(parameters):  # pragma : nocover
     """Sends a detailed representation of messages to stdout
 
     Example:

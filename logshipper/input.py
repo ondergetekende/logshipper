@@ -57,7 +57,8 @@ class BaseInput(object):
         self.should_run = False
         thread = self.thread
         self.thread = None
-        thread.kill()
+        if thread:
+            thread.kill()
 
     def _run(self):
         try:

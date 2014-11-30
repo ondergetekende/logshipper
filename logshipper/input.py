@@ -59,7 +59,13 @@ class BaseInput(object):
         thread.kill()
 
     def _run(self):
-        raise NotImplementedError
+        try:
+            self.run()
+        except Exception:
+            LOG.exception("Encountered exception while running %s", self)
+
+    def run(self):
+        raise NotImplementedError  # pragma: no cover
 
 
 class Command(BaseInput):
@@ -134,7 +140,7 @@ class Command(BaseInput):
             else:
                 def process_pipe(pipe):
                     buf = ""
-                    while not pipe.closed:
+                    while True:
                         chunk = pipe.read(1)
 
                         if not chunk:
@@ -144,7 +150,9 @@ class Command(BaseInput):
                         buf = messages[-1]
                         messages = messages[:-1]
                         for message in messages:
-                            self.emit({"message": message})
+                            self.emit({"message": message.decode('utf8')})
+                    if buf:
+                        self.emit({"message": buf.decode('utf8')})
 
             stdout_thread = eventlet.spawn(process_pipe, p.stdout)
             stderr_thread = eventlet.spawn(process_pipe, p.stderr)

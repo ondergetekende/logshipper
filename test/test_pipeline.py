@@ -13,7 +13,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
+import datetime
 import unittest
 
 import eventlet
@@ -23,11 +23,11 @@ import logshipper.pipeline
 
 
 class TestInput(logshipper.input.BaseInput):
-    testmessage = {"generated": 1, 'message': 'gen1', 'hostname': None,
-                   "timestamp": None}
+    testmessage = {"generated": 1, 'message': u'gen1', 'hostname': None,
+                   "timestamp": datetime.datetime.now()}
 
-    def _run(self):
-        self.handler(dict(self.testmessage))
+    def run(self):
+        self.emit(dict(self.testmessage))
 
 
 def prepare_handler1(params):

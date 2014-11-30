@@ -113,11 +113,12 @@ class Pipeline():
             self.start()
 
     def start(self):
-        self.started = False
+        self.started = True
         for input_ in self.inputs:
             input_.start()
 
     def stop(self):
+        self.started = False
         for input_ in self.inputs:
             input_.stop()
 
@@ -150,8 +151,7 @@ class PipelineManager():
         self.watch_manager = pyinotify.WatchManager()
         flags = (pyinotify.IN_CLOSE_WRITE | pyinotify.IN_DELETE |
                  pyinotify.IN_DELETE_SELF | pyinotify.IN_MOVED_TO |
-                 pyinotify.IN_MOVED_FROM | pyinotify.IN_MODIFY |
-                 pyinotify.IN_CLOSE_WRITE)
+                 pyinotify.IN_MOVED_FROM)
 
         for path in set(os.path.dirname(p) for p in self.globs):
             LOG.debug("Adding path for FS monitoring: %r ", path)
@@ -161,6 +161,7 @@ class PipelineManager():
         self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
             self.watch_manager)
         self.thread = None
+        self.should_run = False
 
     def start(self):
         self.should_run = True
@@ -177,14 +178,18 @@ class PipelineManager():
     def load_pipelines(self):
         for fileglob in self.globs:
             for path in glob.iglob(fileglob):
-                self.load_pipeline(path)
+                pipeline = self.load_pipeline(path)
+                if self.should_run:
+                    pipeline.start()
 
     def _run(self):
         try:
-            self.load_pipeline()
+            self.load_pipelines()
             while self.should_run:
                 LOG.debug("starting notifier")
                 self.notifier.loop(lambda _: not self.should_run)
+        except Exception:  # pragma: nocover
+            LOG.exception("Pipeline manager main loop crashed")
         finally:
             pipelines = self.pipelines.values()
             self.pipelines = {}
@@ -221,9 +226,14 @@ class PipelineManager():
         with open(path, 'r') as yaml_file:
             try:
                 pipeline.update(yaml_file.read())
-            except Exception:
+            except Exception:  # pragma: nocover
                 LOG.exception("Unable to initialize pipeline %s", name)
                 raise
+
+        if self.should_run:
+            pipeline.start()
+
+        return pipeline
 
     def process_in_eventlet(self, message, pipeline_name):
         PIPELINE_POOL.spawn_n(self.process, message, pipeline_name)

@@ -16,6 +16,7 @@
 
 import datetime
 import unittest
+import sys
 
 import mock
 import statsd
@@ -25,6 +26,20 @@ import logshipper.outputs
 
 
 class Tests(unittest.TestCase):
+    def test_stdout(self):
+        message = {
+            "message": "This is a test.",
+            "timestamp": datetime.datetime(2008, 10, 19, 14, 40, 0, 9),
+        }
+        context = logshipper.context.Context(message, None)
+
+        with mock.patch.object(sys.stdout, 'write') as mock_method:
+            handler = logshipper.outputs.prepare_stdout({})
+
+            handler(message, context)
+
+            mock_method.assert_called_once_with("This is a test.\n")
+
     def test_statsd_counter(self):
         message = {
             "message": "This is a test.",
@@ -33,7 +48,6 @@ class Tests(unittest.TestCase):
         context = logshipper.context.Context(message, None)
 
         with mock.patch.object(statsd.Client, '_send') as mock_method:
-            mock_method.return_value = mock.Mock()
             handler = logshipper.outputs.prepare_statsd({'name': "FOO",
                                                          'host': '127.0.1.1'})
 
@@ -53,7 +67,6 @@ class Tests(unittest.TestCase):
         context = logshipper.context.Context(message, None)
 
         with mock.patch.object(statsd.Client, '_send') as mock_method:
-            mock_method.return_value = mock.Mock()
             handler = logshipper.outputs.prepare_statsd({'name': "FOO",
                                                          "type": "gauge"})
 
@@ -70,7 +83,6 @@ class Tests(unittest.TestCase):
         context = logshipper.context.Context(message, None)
 
         with mock.patch.object(statsd.Client, '_send') as mock_method:
-            mock_method.return_value = mock.Mock()
             handler = logshipper.outputs.prepare_statsd({'name': "FOO",
                                                          "type": "timer",
                                                          "multiplier": 0.1})

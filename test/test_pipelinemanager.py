@@ -124,7 +124,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(msg_history, [TestInput.testmessage,
                                        TestInput.testmessage])
 
-
     def test_delete(self):
         pipeline = {
             "inputs": {
@@ -144,7 +143,7 @@ class Tests(unittest.TestCase):
         os.unlink(self.path + "/test1.yml")
         eventlet.sleep(0.01)
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(Exception):  # noqa
             mgr.process({}, 'test1')
 
         mgr.stop()

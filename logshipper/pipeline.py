@@ -240,7 +240,7 @@ class PipelineManager():
 
     def process(self, message, pipeline_name):
         if self.recursion_depth > 10:
-            raise Exception("Recursion to deep")
+            raise ValueError("Recursion to deep")
 
         try:
             self.recursion_depth += 1

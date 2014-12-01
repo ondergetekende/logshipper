@@ -141,7 +141,8 @@ def prepare_statsd(parameters):
                                      statsd_connection)
         delta = False
     else:
-        raise Exception()  # pragma: nocover
+        raise ValueError("Unknown meter type, should be one of counter, "
+                         "gauge or timer")  # pragma: nocover
 
     def handle_statsd(message, context):
         name = name_template.interpolate(context)
@@ -212,7 +213,7 @@ def prepare_jump(parameters):
     pipeline_name = (parameters if isinstance(parameters, six.string_types)
                      else parameters.get("pipeline"))
     if not pipeline_name:
-        raise Exception("parameter pipeline required")
+        raise ValueError("parameter pipeline required")
 
     def handle_jump(message, context):
         context.pipeline_manager.process(message, pipeline_name)
@@ -237,7 +238,7 @@ def prepare_fork(parameters):
     pipeline_name = (parameters if isinstance(parameters, six.string_types)
                      else parameters.get("pipeline"))
     if not pipeline_name:
-        raise Exception("parameter pipeline required")
+        raise ValueError("parameter pipeline required")
 
     def handle_fork(message, context):
         context.pipeline_manager.process_in_eventlet(dict(message),
@@ -263,7 +264,7 @@ def prepare_call(parameters):
     pipeline_name = (parameters if isinstance(parameters, six.string_types)
                      else parameters.get("pipeline"))
     if not pipeline_name:
-        raise Exception("parameter pipeline required")
+        raise ValueError("parameter pipeline required")
 
     def handle_call(message, context):
         context.pipeline_manager.process(message, pipeline_name)

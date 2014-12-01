@@ -268,7 +268,7 @@ class Syslog(BaseInput):
         elif protocol == 'auto':
             self.regexes = [Syslog.rfc5424_matcher, Syslog.rfc3164_matcher]
         else:
-            raise Exception('protocol must be either rfc3164, rfc5424 or auto')
+            raise ValueError('protocol must be either rfc3164, rfc5424 or auto')
 
     def run(self):
         self.server = eventlet.listen((self.bind, self.port))

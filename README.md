@@ -17,20 +17,24 @@ Introduction
 
 In logshipper, logmessages travel to pipelines. Pipelines may have their own sources of logs, called inputs, or they may be invoked by other pipelines. In the pipeline, the log message travels through a number of steps. Each of those steps may modify the message, send it elsewhere or ignore it altogether.
 
-An example pipeline:
+Example:
+---
 
 ```yaml
 inputs:
 - tail: 
     filename: /var/log/messages
 steps:
-- match: "myapps.test"
+- match: "myapps\.test"
   extract: "widget=(\d+)"
   set:
     widget: {1}
 
 - elasticsearch:
     url: http://127.0.0.1:9200
+```
+
+In this example pipeline, all meessages appended to `/var/log/syslog` are sent to elasticsearch. When a message contains the text `myapps.test`, the strings like `widget=172` are parsed into a separate field.
 
 Key concepts
 ---

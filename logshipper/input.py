@@ -71,7 +71,7 @@ class BaseInput(object):
 
 
 class Command(BaseInput):
-    """Processes the output from a output, line by line
+    r"""Processes the output from a output, line by line
 
     Start a process, and generated the lines from both stderr and stdout as
     a message. For one-shot processes (such as uptime), ``interval`` means
@@ -98,11 +98,12 @@ class Command(BaseInput):
         - debug:
     """
 
-    def __init__(self, commandline, interval=60, env={}, separator='\n'):
+    def __init__(self, commandline, interval=60, env=None, separator='\n'):
         self.commandline = commandline
         self.interval = int(interval)
         self.env = {"LC_ALL": "C"}
-        self.env.update(env)
+        if env:
+            self.env.update(env)
         self.separator = separator
         self.process = None
 
@@ -115,20 +116,20 @@ class Command(BaseInput):
         while self.should_run:
             start_time = time.time()
             if isinstance(self.commandline, six.string_types):
-                p = subprocess.Popen(self.commandline, close_fds=True,
-                                     env=self.env, shell=True,
-                                     stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
+                self.process = subprocess.Popen(self.commandline,
+                                                close_fds=True,
+                                                env=self.env, shell=True,
+                                                stdin=subprocess.PIPE,
+                                                stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE)
             else:
-                p = subprocess.Popen(self.commandline, close_fds=True,
-                                     env=self.env,
-                                     stdin=subprocess.PIPE,
-                                     stdout=subprocess.PIPE,
-                                     stderr=subprocess.PIPE)
+                self.process = subprocess.Popen(self.commandline,
+                                                close_fds=True, env=self.env,
+                                                stdin=subprocess.PIPE,
+                                                stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE)
 
-            p.stdin.close()
-            self.process = p
+            self.process.stdin.close()
 
             if self.separator == '\n':
                 def process_pipe(pipe):
@@ -152,10 +153,10 @@ class Command(BaseInput):
                     if buf:
                         self.emit({"message": buf})
 
-            stdout_thread = eventlet.spawn(process_pipe, p.stdout)
-            stderr_thread = eventlet.spawn(process_pipe, p.stderr)
+            stdout_thread = eventlet.spawn(process_pipe, self.process.stdout)
+            stderr_thread = eventlet.spawn(process_pipe, self.process.stderr)
 
-            p.wait()
+            self.process.wait()
             self.process = None
 
             stdout_thread.wait()
@@ -185,11 +186,11 @@ class Stdin(BaseInput):
 
 SYSLOG_PRIORITIES = ['emergency', 'alert', 'critical', 'error', 'warning',
                      'notice', 'informational', 'debug']
-SYSLOG_FACILITIES = ([
-    'kern', 'user', 'mail', 'daemon', 'auth', 'syslog', 'lpr', 'news',
-    'uucp', 'cron', 'authpriv', 'ftp', 'ntp', 'audit', 'alert', 'local', ]
-    + ['local%i' % i for i in range(8)]
-    + ['unknown%02i' % i for i in range(12)]
+SYSLOG_FACILITIES = (
+    ['kern', 'user', 'mail', 'daemon', 'auth', 'syslog', 'lpr', 'news',
+     'uucp', 'cron', 'authpriv', 'ftp', 'ntp', 'audit', 'alert', 'local'] +
+    ['local%i' % i for i in range(8)] +
+    ['unknown%02i' % i for i in range(12)]
 )
 
 
@@ -221,22 +222,6 @@ class Syslog(BaseInput):
             port: 1514
     """
 
-    class rfc5424_tz(datetime.tzinfo):
-        def __init__(self, offset):
-            self.offset = offset
-
-        def utcoffset(self):
-            return self.offset
-
-        def dst(self, dt):
-            return datetime.timedelta(0)
-
-        def tzname(self, dt):
-            return "unnamed"
-
-        def __repr__(self):
-            return "rfc5424_tz(%r)" % self.offset
-
     rfc3164_matcher = re.compile(r'<(?P<prival>\d{1,3})>')
 
     rfc5424_matcher = re.compile(r"""
@@ -260,6 +245,7 @@ class Syslog(BaseInput):
     def __init__(self, bind="127.0.0.1", port=514, protocol='auto'):
         self.bind = bind
         self.port = int(port)
+        self.server = None
 
         if protocol == 'rfc5424':
             self.regexes = [Syslog.rfc5424_matcher]
@@ -268,15 +254,16 @@ class Syslog(BaseInput):
         elif protocol == 'auto':
             self.regexes = [Syslog.rfc5424_matcher, Syslog.rfc3164_matcher]
         else:
-            raise ValueError('protocol must be either rfc3164, rfc5424 or auto')
+            raise ValueError(
+                'protocol must be either rfc3164, rfc5424 or auto')
 
     def run(self):
         self.server = eventlet.listen((self.bind, self.port))
         eventlet.serve(self.server, self.handle)
 
-    def handle(self, socket, address):
+    def handle(self, sock, address):
         LOG.info("Accepted syslog connection from %r", address[0])
-        fileobj = socket.makefile('r')
+        fileobj = sock.makefile('r')
 
         for line in fileobj:
             self.process_message(line.decode('utf8'), address[0])
@@ -284,8 +271,8 @@ class Syslog(BaseInput):
     def process_message(self, line, peer):
         line = line.rstrip('\r\n')
 
-        for r in self.regexes:
-            match = r.match(line)
+        for regex in self.regexes:
+            match = regex.match(line)
             if not match:
                 continue
 
@@ -302,30 +289,30 @@ class Syslog(BaseInput):
                 # TODO(KvdV): Parse structured data
                 message['structured_data'] = structured_data
 
-            timestamp = message.pop('timestamp', '-')
-            if timestamp != '-':
-                if timestamp.endswith('Z'):
+            timestampstr = message.pop('timestamp', '-')
+            if timestampstr != '-':
+                if timestampstr.endswith('Z'):
                     tz_offset = datetime.timedelta(0)
-                    timestamp = timestamp[:-1]
+                    timestampstr = timestampstr[:-1]
                 else:
-                    direction = 1 if (timestamp[-6] == '+') else -1
+                    direction = 1 if (timestampstr[-6] == '+') else -1
                     tz_offset = datetime.timedelta(
-                        hours=direction * int(timestamp[-5:-3]),
-                        minutes=direction * int(timestamp[-2:]),
+                        hours=direction * int(timestampstr[-5:-3]),
+                        minutes=direction * int(timestampstr[-2:]),
                     )
-                    timestamp = timestamp[:-6]
+                    timestampstr = timestampstr[:-6]
 
-                timestamp = timestamp.split('.')
-                ts = datetime.datetime.strptime(timestamp[0],
-                                                "%Y-%m-%dT%H:%M:%S")
-                if len(timestamp) == 2:
-                    seconds = float("." + timestamp[1])
-                    ts = ts + datetime.timedelta(seconds=seconds)
+                timestampstr = timestampstr.split('.')
+                timestamp = datetime.datetime.strptime(timestampstr[0],
+                                                       "%Y-%m-%dT%H:%M:%S")
+                if len(timestampstr) == 2:
+                    seconds = float("." + timestampstr[1])
+                    timestamp += datetime.timedelta(seconds=seconds)
 
                 if tz_offset:
-                    ts = ts + tz_offset
+                    timestamp += tz_offset
 
-                message['timestamp'] = ts
+                message['timestamp'] = timestamp
 
             message['message'] = line[match.end():]
 

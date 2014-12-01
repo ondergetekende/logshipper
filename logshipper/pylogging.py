@@ -102,14 +102,15 @@ def prepare_logging(parameters):
 
     # Now mangle the parameters to match the dictformat
     parameters['handler']['formatter'] = "formatter"
-    parameters['handler']['filters'] = [str(i) for (i, f)
+    parameters['handler']['filters'] = [str(idx) for (idx, _)
                                         in enumerate(filters)]
 
     configurator.config['formatters'] = {
         "formatter": formatter,
     }
-    configurator.config["filters"] = dict((str(i), f)
-                                          for (i, f) in enumerate(filters))
+    configurator.config["filters"] = dict((str(idx), filter_)
+                                          for (idx, filter_)
+                                          in enumerate(filters))
 
     handler = configurator.configure_handler(parameters['handler'])
 

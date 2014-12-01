@@ -49,18 +49,23 @@ class Tail(logshipper.input.BaseInput):
             - /var/log/my_app/*.log
     """
 
-    class FileTail:
-        __slots__ = ['fd', 'path', 'buffer', 'stat', 'rescan', 'wd']
+    class FileTail(object):
+        __slots__ = ['file_descriptor', 'path', 'buffer', 'stat', 'rescan',
+                     'watch_descriptor']
 
         def __init__(self):
-            self.buffer = ""
-            self.fd = None
+            self.buffer = b""
+            self.file_descriptor = None
+            self.path = None
+            self.rescan = None
+            self.stat = None
+            self.watch_descriptor = None
 
-    def __init__(self, filename):
-        if isinstance(filename, six.string_types):
-            filename = [filename]
+    def __init__(self, filenames):
+        if isinstance(filenames, six.string_types):
+            filenames = [filenames]
 
-        self.globs = [os.path.abspath(f) for f in filename]
+        self.globs = [os.path.abspath(filename) for filename in filenames]
         self.watch_manager = pyinotify.WatchManager()
         self.tails = {}
         self.dir_watches = {}
@@ -89,20 +94,17 @@ class Tail(logshipper.input.BaseInput):
         if not event.dir:
             self.update_tails(self.globs)
 
-    def _run(self):
+    def run(self):
         self.update_tails(self.globs, do_read_all=False)
         try:
             while self.should_run:
                 self.notifier.loop(lambda _: not self.should_run)
-        except Exception:
-            LOG.exception("notifier loop crashed")
-            raise
         finally:
             self.update_tails([])
 
     def read_tail(self, tail):
         while True:
-            buff = os.read(tail.fd, 1024)
+            buff = os.read(tail.file_descriptor, 1024)
             if not buff:
                 return
 
@@ -128,8 +130,9 @@ class Tail(logshipper.input.BaseInput):
         # Find or create a tail.
         tail = self.tails.get(path)
         if tail:
-            fd_stat = os.fstat(tail.fd)
-            if fd_stat.st_size > os.lseek(tail.fd, 0, os.SEEK_CUR):
+            fd_stat = os.fstat(tail.file_descriptor)
+            pos = os.lseek(tail.file_descriptor, 0, os.SEEK_CUR)
+            if fd_stat.st_size > pos:
                 LOG.debug("Something to read")
                 self.read_tail(tail)
             if (tail.stat.st_size > file_stat.st_size or
@@ -157,7 +160,7 @@ class Tail(logshipper.input.BaseInput):
                 self.process_tail(path, not do_read_all)
                 watches.add(path)
 
-        for vanished in (set(self.tails) - watches):
+        for vanished in set(self.tails) - watches:
             LOG.info("%s vanished. Stop tailing", vanished)
             self.close_tail(self.tails.pop(vanished))
 
@@ -176,22 +179,22 @@ class Tail(logshipper.input.BaseInput):
 
     def open_tail(self, path, go_to_end=False):
         tail = Tail.FileTail()
-        tail.fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        tail.file_descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
         tail.path = path
 
         if go_to_end:
-            os.lseek(tail.fd, 0, os.SEEK_END)
+            os.lseek(tail.file_descriptor, 0, os.SEEK_END)
 
-        wd = self.watch_manager.add_watch(
+        watch_descriptor = self.watch_manager.add_watch(
             path, INOTIFY_FILE_MASK,
             proc_fun=self._inotify_file)
 
-        tail.wd = wd.pop(path)
+        tail.watch_descriptor = watch_descriptor.pop(path)
         return tail
 
     def close_tail(self, tail):
-        self.watch_manager.rm_watch(tail.wd)
-        os.close(tail.fd)
+        self.watch_manager.rm_watch(tail.watch_descriptor)
+        os.close(tail.file_descriptor)
         if tail.buffer:
             LOG.debug("Generating message from tail buffer")
             self.handler({'message': tail.buffer})

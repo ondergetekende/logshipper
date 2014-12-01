@@ -87,7 +87,7 @@ def prepare_action(name, parameters):
     return handler
 
 
-class Pipeline():
+class Pipeline(object):
     def __init__(self, manager):
         self.manager = manager
         self.steps = []
@@ -106,7 +106,7 @@ class Pipeline():
         if isinstance(input_config, dict):
             input_config = input_config.items()
         else:
-            input_config = sum((c.items() for c in input_config), [])
+            input_config = sum((config.items() for config in input_config), [])
         self.inputs = [prepare_input(klass, params, self.process_in_eventlet)
                        for klass, params in input_config]
         if started:
@@ -142,7 +142,7 @@ class Pipeline():
         return message
 
 
-class PipelineManager():
+class PipelineManager(object):
     def __init__(self, globs):
         self.globs = globs
         self.pipelines = {}
@@ -153,7 +153,7 @@ class PipelineManager():
                  pyinotify.IN_DELETE_SELF | pyinotify.IN_MOVED_TO |
                  pyinotify.IN_MOVED_FROM)
 
-        for path in set(os.path.dirname(p) for p in self.globs):
+        for path in set(os.path.dirname(pathglob) for pathglob in self.globs):
             LOG.debug("Adding path for FS monitoring: %r ", path)
             self.watch_manager.add_watch(path, flags,
                                          proc_fun=self._inotified)

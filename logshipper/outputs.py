@@ -72,7 +72,7 @@ def prepare_rabbitmq(parameters):
 
 
 def prepare_statsd(parameters):
-    """Sends data to statsd
+    r"""Sends data to statsd
 
     Sends a value to statsd.
 
@@ -121,22 +121,22 @@ def prepare_statsd(parameters):
         sample_rate=float(parameters.get('sample_rate', 1.0)),
     )
 
-    type = parameters.get('type', 'counter')
+    meter_type = parameters.get('type', 'counter')
     name_template = logshipper.context.prepare_template(parameters['name'])
     val_template = logshipper.context.prepare_template(
         parameters.get('value', 1))
     multiplier = float(parameters.get('multiplier', 1.0))
 
-    if type == 'counter':
+    if meter_type == 'counter':
         statsd_client = statsd.Counter(parameters.get('prefix'),
                                        statsd_connection)
         delta = True
-    elif type == 'gauge':
+    elif meter_type == 'gauge':
         statsd_client = statsd.Gauge(parameters.get('prefix'),
                                      statsd_connection)
         delta_str = str(parameters.get("delta", False)).lower()
         delta = delta_str in filters.TRUTH_VALUES
-    elif type == 'timer':
+    elif meter_type == 'timer':
         statsd_client = statsd.Timer(parameters.get('prefix'),
                                      statsd_connection)
         delta = False
@@ -165,10 +165,10 @@ def prepare_stdout(parameters):
 
         stdout: "{date}: {message}"
     """
-    format = (parameters if isinstance(parameters, six.string_types)
-              else parameters.get("format", "{message}"))
-    format = format.rstrip("\n\r") + "\n"
-    format_template = logshipper.context.prepare_template(format)
+    line_format = (parameters if isinstance(parameters, six.string_types)
+                   else parameters.get("format", "{message}"))
+    line_format = line_format.rstrip("\n\r") + "\n"
+    format_template = logshipper.context.prepare_template(line_format)
     import sys
 
     def handle_stdout(message, context):

@@ -34,7 +34,7 @@ PHASE_DROP = 40
 
 
 def prepare_match(parameters):
-    """Matches regexes against message fields
+    r"""Matches regexes against message fields
 
     The match action matches a regex to a specific field of a message. If the
     regex doesn't match, the step is skipped. By default the ``message`` field
@@ -79,10 +79,10 @@ def prepare_match(parameters):
         parameters = {"message": parameters}
 
     regexes = [
-        (a, [re.compile(b)]
-            if isinstance(b, six.string_types)
-            else [re.compile(c) for c in b])
-        for (a, b) in parameters.items()]
+        (fieldname, ([re.compile(regex)]
+                     if isinstance(regex, six.string_types) else
+                     [re.compile(regex1) for regex1 in regex]))
+        for (fieldname, regex) in parameters.items()]
 
     def handle_match(message, context):
         matches = {}
@@ -91,17 +91,16 @@ def prepare_match(parameters):
         for field_name, regex_list in regexes:
             field_data = message.get(field_name)
             for regex in regex_list:
-                m = regex.search(field_data)
-                if m:
+                match = regex.search(field_data)
+                if match:
+                    matches[field_name] = last_match = match
+                    last_match_key = field_name
                     break
             else:
                 return SKIP_STEP
 
-            matches[field_name] = last_match = m
-            last_match_key = field_name
-
-        for m in matches.values():
-            message.update(m.groupdict())
+        for match in matches.values():
+            message.update(match.groupdict())
 
         context.matches = matches
 
@@ -165,7 +164,8 @@ def prepare_edge(parameters):
             return SKIP_STEP
 
         if len(queue) >= backlog:
-            items = sorted((t, k) for (k, t) in queue.items())
+            items = sorted((time, q_value)
+                           for (q_value, time) in queue.items())
             queue.pop(items[0][1])
 
         queue[value] = time.time()
@@ -196,7 +196,7 @@ def prepare_replace(parameters):
 
 
 def prepare_set(parameters):
-    """Sets fields of messages
+    r"""Sets fields of messages
 
     The ``set`` action allows you to set fields of messages. You can use it to
     add conditional flags, or combine it with them match action to perform
@@ -237,7 +237,8 @@ def prepare_unset(parameters):
         - foo
     """
     if isinstance(parameters, six.string_types):
-        parameters = [p.strip() for p in parameters.split(",")]
+        parameters = [parameter.strip()
+                      for parameter in parameters.split(",")]
 
     assert isinstance(parameters, list)
 
@@ -326,14 +327,14 @@ def prepare_strptime(parameters):
     """
 
     fieldname = parameters['field']
-    format = parameters.get('format')
-    import dateutil.parser
+    formatstring = parameters.get('format')
 
-    if format:
-        parse = lambda v: datetime.datetime.strptime(v, format)
+    if formatstring:
+        parse = lambda value: datetime.datetime.strptime(value, formatstring)
     else:
-        parse = lambda v: dateutil.parser.parse(
-            v, default=datetime.datetime.now())
+        import dateutil.parser
+        parse = lambda value: dateutil.parser.parse(
+            value, default=datetime.datetime.now())
 
     def handle_strptime(message, context):
         value = message[fieldname]
@@ -354,11 +355,11 @@ TIMEDELTA_REGEX = re.compile(r'^\s*'
                              r'\s*$')
 
 
-def parse_timedelta(time):
+def parse_timedelta(deltastr):
     # Taken from http://stackoverflow.com/questions/4628122
-    parts = TIMEDELTA_REGEX.match(time)
+    parts = TIMEDELTA_REGEX.match(deltastr)
     if not parts:
-        raise ValueError("Invalid delta format: %s", time)
+        raise ValueError("Invalid delta format: %s", deltastr)
 
     args = dict((key, float(value)) for (key, value) in
                 parts.groupdict().items()
@@ -374,15 +375,15 @@ def prepare_timewindow(parameters):
     allows messages that are timestamped between an hour in the past, and 2
     minutes in the future.
     """
-    time = parameters or "1m"
+    deltastr = parameters or "1m"
 
-    time = time.split('-', 1)
-    if len(time) == 1:
-        upper_bound = parse_timedelta(time[0])
+    delta = deltastr.split('-', 1)
+    if len(delta) == 1:
+        upper_bound = parse_timedelta(delta[0])
         lower_bound = -upper_bound
     else:
-        lower_bound = -parse_timedelta(time[0])
-        upper_bound = parse_timedelta(time[1])
+        lower_bound = -parse_timedelta(delta[0])
+        upper_bound = parse_timedelta(delta[1])
 
     def handle_timewindow(message, context):
         timestamp = message['timestamp']

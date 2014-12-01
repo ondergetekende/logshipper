@@ -97,26 +97,26 @@ def ship_file():
 
     pipeline_manager.load_pipelines()
 
-    for file in ARGS.file:
+    for filename in ARGS.file:
         # Peek to detect gzip
-        with open(file, 'rb') as f:
+        with open(filename, 'rb') as f:
             header = f.read(16)
 
         if header[0:2] == b"\037\213":
-            print("Processing gzipped file %s" % file)
-            f = gzip.open(file)
+            print("Processing gzipped file %s" % filename)
+            file_handle = gzip.open(filename)
         elif header[0:3] == b"\x42\x5A\x68":
-            print("Processing bz2'ed file %s" % file)
-            f = bz2.BZ2File(file)
+            print("Processing bz2'ed file %s" % filename)
+            file_handle = bz2.BZ2File(filename)
         else:
-            print("Processing uncompressed file %s" % file)
-            f = open(file)
+            print("Processing uncompressed file %s" % filename)
+            file_handle = open(filename)
 
-        with f:
+        with file_handle:
             lines = 0
-            t0 = time.time()
+            start_time = time.time()
             treport = 0
-            for line in f:
+            for line in file_handle:
                 lines += 1
                 line = line.rstrip("\r\n")
                 try:
@@ -130,7 +130,7 @@ def ship_file():
                     continue
 
                 if (time.time() - treport) > 1:
-                    rate = lines / (time.time() - t0)
+                    rate = lines / (time.time() - start_time)
                     sys.stdout.write(
                         "Processing %i lines, %4.1f/s\r" % (lines, rate))
                     treport = time.time()

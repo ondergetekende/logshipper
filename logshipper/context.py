@@ -33,9 +33,9 @@ def _template_code(template):
         namespace = {}
 
         for item in template:
-            ns, code = _template_code(item)
+            sub_namespace, code = _template_code(item)
             result.append("%s," % code)
-            namespace.update(ns)
+            namespace.update(sub_namespace)
 
         result.append("]")
         return namespace, "".join(result)
@@ -45,9 +45,9 @@ def _template_code(template):
         namespace = {}
 
         for key, value in template.items():
-            ns, value_code = _template_code(value)
+            sub_namespace, value_code = _template_code(value)
             result.append("%r:%s," % (key, value_code))
-            namespace.update(ns)
+            namespace.update(sub_namespace)
 
         result.append("}")
         return namespace, "".join(result)
@@ -111,14 +111,14 @@ def prepare_template(template):
 
     six.exec_(result, namespace)
 
-    fn = namespace["template"]
-    fn.interpolate = lambda context: fn(context.backreferences,
-                                        context.message)
+    func = namespace["template"]
+    func.interpolate = lambda context: func(context.backreferences,
+                                            context.message)
 
-    return fn
+    return func
 
 
-class Context():
+class Context(object):
     __slots__ = ['pipeline_manager', 'message', 'match', 'match_field',
                  'backreferences', 'matches']
 

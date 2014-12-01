@@ -14,6 +14,9 @@
 #    under the License.
 
 import logging.config
+import time
+
+import logshipper.context
 
 
 def prepare_logging(parameters):
@@ -37,9 +40,8 @@ def prepare_logging(parameters):
     ``name``
         The logging name to be used for messages. Defaults to ``logshipper``.
     ``level``
-        The logging level to be used for messages. Chose from ``DEBUG``,
-        ``INFO``, ``WARNING``, ``ERROR``, ``CRITICAL`` and ``NOTSET``. Defaults
-        to ``INFO``. Most handlers also accept other values.
+        The numeric logging level to be used for messages. See documentation of
+        python's ``logging`` module to see which numbers map to what.
     ``pathname``
         Optional. The filename in which the log message was generated.
     ``lineno``
@@ -72,12 +74,21 @@ def prepare_logging(parameters):
 
     assert isinstance(parameters, dict)
 
-    name_template = parameters.pop('name', 'logshipper')
-    level_template = parameters.pop('level', 'INFO')
-    pathname_template = parameters.pop('pathname', None)
-    lineno_template = parameters.pop('lineno', None)
-    func_template = parameters.pop('func', None)
-    msg_template = parameters.pop('msg', '{message}')
+    name = logshipper.context.prepare_template(
+        parameters.pop('name', 'logshipper'))
+
+    level = logshipper.context.prepare_template(
+        parameters.pop('level', logging.INFO))
+
+    pathname = logshipper.context.prepare_template(
+        parameters.pop('pathname', None))
+
+    lineno = logshipper.context.prepare_template(
+        parameters.pop('lineno', None))
+
+    func = logshipper.context.prepare_template(parameters.pop('func', None))
+    msg = logshipper.context.prepare_template(
+        parameters.pop('msg', '{message}'))
 
     configurator = logging.config.DictConfigurator({})
 
@@ -103,22 +114,24 @@ def prepare_logging(parameters):
     handler = configurator.configure_handler(parameters['handler'])
 
     def handle_logging(message, context):
-        name = context.interpolate_template(name_template)
-        level = context.interpolate_template(level_template)
-        pathname = context.interpolate_template(pathname_template)
-        func = context.interpolate_template(func_template)
-        lineno = context.interpolate_template(lineno_template)
-        lineno = int(lineno) if lineno else None
+        line = lineno.interpolate(context)
+        line = int(line) if line else None
 
-        msg = context.interpolate_template(msg_template)
+        record = logging.LogRecord(
+            name=name.interpolate(context),
+            level=int(level.interpolate(context)),
+            pathname=pathname.interpolate(context),
+            lineno=line,
+            msg=msg.interpolate(context),
+            args=context.backreferences[1:],
+            exc_info=None,
+            func=func)
 
-        record = logging.LogRecord(name, level, pathname, lineno, msg,
-                                   context.backreferences[1:],
-                                   None, func)
+        record.created = time.mktime(message.pop('timestamp').timetuple())
 
         for key, value in message.items():
             if not hasattr(record, key):
-                setattr(record, name, value)
+                setattr(record, key, value)
 
         handler.handle(record)
 

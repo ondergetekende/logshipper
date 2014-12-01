@@ -79,6 +79,11 @@ def prepare_elasticsearch_http(parameters):
     if 'document' in parameters:
         document_template = logshipper.context.prepare_template(
             parameters['document']).interpolate
+    elif timestamp_field != 'timestamp':
+        def document_template(context):
+            result = dict(context.message)
+            result[timestamp_field] = result.pop("timestamp")
+            return result
     else:
         document_template = lambda context: dict(context.message)
 
@@ -92,11 +97,9 @@ def prepare_elasticsearch_http(parameters):
 
     def handle_elasticsearch_http(message, context):
         document = document_template(context)
-        if timestamp_field != 'timestamp':
-            document[timestamp_field] = document.pop("timestamp")
 
         document = json.dumps(document, default=json_default,
-                              sort_keys=sort_keys)
+                              sort_keys=sort_keys).encode('utf8')
 
         url = "%s%s/%s/%s" % (base_url, index.interpolate(context), doctype,
                               id_(context) if id_ else md5_hash(document))

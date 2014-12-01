@@ -4,7 +4,7 @@
 [<img src="https://img.shields.io/pypi/dm/logshipper.svg?style=flat">](https://pypi.python.org/pypi/logshipper)
 [<img src="https://pypip.in/py_versions/logshipper/badge.svg?style=flat">](https://pypi.python.org/pypi/logshipper)
 [<img src="https://img.shields.io/pypi/l/logshipper.svg?style=flat">](https://github.com/ondergetekende/logshipper/blob/master/LICENSE)
-[<img src="(https://img.shields.io/scrutinizer/g/ondergetekende/logshipper.svg?style=flat">]https://scrutinizer-ci.com/g/ondergetekende/logshipper/)
+[<img src="https://img.shields.io/scrutinizer/g/ondergetekende/logshipper.svg?style=flat">](https://scrutinizer-ci.com/g/ondergetekende/logshipper/)
 
 
 Log shipper

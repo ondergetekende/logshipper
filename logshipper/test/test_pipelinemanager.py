@@ -118,7 +118,11 @@ class Tests(unittest.TestCase):
         mgr = logshipper.pipeline.PipelineManager([self.path + "/*.yml"])
 
         mgr.start()
-        eventlet.sleep(0.1)
+        eventlet.sleep(0.01)
+        with open(self.path + "/test1.yml", 'w') as f:
+            json.dump(pipeline, f)
+
+        eventlet.sleep(0.01)
         mgr.stop()
 
         self.assertEqual(msg_history, [TestInput.testmessage,

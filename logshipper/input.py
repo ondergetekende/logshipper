@@ -50,15 +50,15 @@ class BaseInput(object):
 
     def start(self):
         self.should_run = True
-        if not self.thread:
+        if self.thread is None:
             self.thread = eventlet.spawn(self._run)
 
     def stop(self):
         self.should_run = False
         thread = self.thread
-        self.thread = None
         if thread:
             thread.kill()
+        self.thread = None
 
     def _run(self):
         try:
@@ -267,6 +267,8 @@ class Syslog(BaseInput):
 
         for line in fileobj:
             self.process_message(line.decode('utf8'), address[0])
+
+        LOG.info("%r closed connection to syslog", address[0])
 
     def process_message(self, line, peer):
         line = line.rstrip('\r\n')

@@ -35,3 +35,29 @@ class Test(unittest.TestCase):
         eventlet.sleep()
 
         input_handler.run.assert_called_once_with()
+
+    def test_thread_lifecycle(self):
+
+        status = ["not started"]
+
+        def thread_runner():
+            assert status[0] == "not started"
+            status[0] = "started"
+
+            try:
+                while True:
+                    eventlet.sleep()
+            finally:
+                status[0] = "stopped"
+
+        input_handler = logshipper.input.BaseInput()
+        input_handler.run = thread_runner
+
+        self.assertEqual(status[0], "not started")
+        input_handler.start()
+        eventlet.sleep()
+        self.assertEqual(status[0], "started")
+        eventlet.sleep()
+        input_handler.stop()
+        eventlet.sleep()
+        self.assertEqual(status[0], "stopped")

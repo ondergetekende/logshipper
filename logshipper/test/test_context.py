@@ -56,7 +56,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(value, [1, "F 123"])
 
     def test_unknowntype(self):
-        class Foo():
+        class Foo(object):
             pass
 
         with self.assertRaises(TypeError):

@@ -27,7 +27,7 @@ import logshipper.elasticsearch
 class Tests(unittest.TestCase):
 
     def test_elasticsearch_http(self):
-        class Foo():
+        class Foo(object):
             def __str__(self):
                 return "1235"
 

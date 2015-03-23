@@ -158,12 +158,13 @@ class Tests(unittest.TestCase):
         handler = logshipper.filters.prepare_strptime({
             "field": "foo",
         })
+        now = datetime.datetime.now()
 
         message = {"foo": "Nov 13 01:22:22 CEST"}
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)
-        date = datetime.datetime(2014, 11, 13, 0, 22, 22, 0)
+        date = datetime.datetime(now.year, 11, 13, 0, 22, 22, 0)
         self.assertEqual(message['foo'], date)
 
     def test_strptime_parse(self):
@@ -171,7 +172,7 @@ class Tests(unittest.TestCase):
             "field": "foo",
         })
 
-        message = {"foo": "Nov 13 01:22:22"}
+        message = {"foo": "2014 Nov 13 01:22:22"}
         context = logshipper.context.Context(message, None)
         result = handler(message, context)
         self.assertEqual(result, None)

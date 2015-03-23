@@ -65,13 +65,48 @@ class Tail(logshipper.input.BaseInput):
         if isinstance(filenames, six.string_types):
             filenames = [filenames]
 
-        self.globs = [os.path.abspath(filename) for filename in filenames]
+        self.globs = []
         self.watch_manager = pyinotify.WatchManager()
         self.tails = {}
         self.dir_watches = {}
 
         self.notifier = logshipper.pyinotify_eventlet_notifier.Notifier(
             self.watch_manager)
+
+        for filename in filenames:
+            self.add_file(filename=filename)
+
+    def add_file(self, filename):
+        """
+        Add filename to the list of the monitored files.
+
+        :param filename: Full absolute path to the file to monitor.
+        :type filename: ``str``
+        """
+        full_path = os.path.abspath(filename)
+
+        if full_path not in self.globs:
+            self.globs.append(full_path)
+
+        self.update_tails(self.globs, do_read_all=False)
+
+    def remove_file(self, filename):
+        """
+        Remove filename from the list of the monitored files.
+
+        :param filename: Full absolute path to the file to remove.
+        :type filename: ``str``
+        """
+
+        full_path = os.path.abspath(filename)
+
+        try:
+            self.globs.remove(full_path)
+        except ValueError:
+            # File not monitored
+            return
+
+        self.update_tails(self.globs, do_read_all=False)
 
     def _inotify_file(self, event):
         LOG.debug("file notified %r", event)

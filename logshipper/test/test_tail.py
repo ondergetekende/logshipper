@@ -87,3 +87,61 @@ class Tail(unittest.TestCase):
 
         finally:
             shutil.rmtree(path)
+
+    def test_add_and_remove_file(self):
+        messages = []
+
+        def message_handler(m):
+            LOG.debug('event generated %s', m['message'])
+            messages.append(m)
+
+        try:
+            path = tempfile.mkdtemp()
+            tail = logshipper.tail.Tail(filenames=[])
+            tail.set_handler(message_handler)
+            tail.start()
+            eventlet.sleep(0.01)
+
+            # We begin with monitoring no files
+            self.assertEqual(tail.globs, [])
+
+            LOG.debug("about to write line 1")
+            with open(path + "/test.log", 'w') as f:
+                f.write("line 1\n")
+                f.write("line 1\n")
+                f.flush()
+            eventlet.sleep(0.01)
+
+            self.assertEqual(messages, [])
+
+            # Add a new file
+            tail.add_file(filename=path + "/test.log")
+            self.assertEqual(tail.globs, [path + "/test.log"])
+            eventlet.sleep(0.01)
+
+            LOG.debug("about to write line 2")
+            with open(path + "/test.log", 'w') as f:
+                f.write("line 2\n")
+                f.flush()
+            eventlet.sleep(0.01)
+
+            self.assertEqual(messages, [{"message": "line 2"}])
+
+            # Remove file
+            tail.remove_file(filename=path + "/test.log")
+            self.assertEqual(tail.globs, [])
+
+            LOG.debug("about to write line 3")
+            with open(path + "/test.log", 'w') as f:
+                for i in range(0, 100):
+                    f.write("line 3\n")
+                f.flush()
+            eventlet.sleep(0.01)
+
+            # Assert no new messages have been added
+            self.assertEqual(messages, [{"message": "line 2"}])
+
+            tail.stop()
+            eventlet.sleep(0.1)
+        finally:
+            shutil.rmtree(path)
